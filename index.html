@@ -1166,30 +1166,50 @@ async function renderDashboardAdmin(){
   const produtosEstoqueBaixo = (PRODUTOS || []).filter(p => (p.estoque || 0) <= 5).length;
 
   return `
-    <div style="background:#f5efe6; border:1px solid #e2d9cd; padding:16px; border-radius:12px; font-size:13px; color:#6b655b; line-height:1.5; margin-bottom:20px;">
+    <div style="background:#f5efe6; border:1px solid #e2d9cd; padding:16px; border-radius:12px; font-size:13px; color:#6b655b; line-height:1.5; margin-bottom:20px; font-family: system-ui, sans-serif;">
       📌 Estes números vêm direto do banco de dados online — são os mesmos para você em qualquer computador ou celular, e reúnem os pedidos de todos os clientes que compraram pelo site.
     </div>
     
     <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:16px;">
       
-      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:100px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-size:11px; font-weight:700; color:#8c8275; letter-spacing:0.5px; text-transform:uppercase;">PEDIDOS ENVIADOS P/ WHATSAPP</div>
-        <div style="font-size:28px; font-weight:700; color:#1b382b; font-family:serif; margin-top:8px;">${(pedidos || []).length}</div>
+      <!-- Card: Pedidos -->
+      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:110px; display:flex; flex-direction:column; justify-content:space-between;">
+        <div style="font-family: system-ui, sans-serif; font-size:11px; font-weight:700; color:#857C70; text-transform:uppercase; letter-spacing:0.5px;">
+          PEDIDOS ENVIADOS P/ WHATSAPP
+        </div>
+        <div style="font-family: Georgia, 'Playfair Display', serif; font-size:28px; font-weight:700; color:#22392E; margin-top:8px;">
+          ${(pedidos || []).length}
+        </div>
       </div>
 
-      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:100px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-size:11px; font-weight:700; color:#8c8275; letter-spacing:0.5px; text-transform:uppercase;">FATURAMENTO ESTIMADO</div>
-        <div style="font-size:28px; font-weight:700; color:#1b382b; font-family:serif; margin-top:8px;">${formatarMoeda(faturamentoTotal)}</div>
+      <!-- Card: Faturamento -->
+      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:110px; display:flex; flex-direction:column; justify-content:space-between;">
+        <div style="font-family: system-ui, sans-serif; font-size:11px; font-weight:700; color:#857C70; text-transform:uppercase; letter-spacing:0.5px;">
+          FATURAMENTO ESTIMADO
+        </div>
+        <div style="font-family: Georgia, 'Playfair Display', serif; font-size:28px; font-weight:700; color:#22392E; margin-top:8px;">
+          ${formatarMoeda(faturamentoTotal)}
+        </div>
       </div>
 
-      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:100px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-size:11px; font-weight:700; color:#8c8275; letter-spacing:0.5px; text-transform:uppercase;">PRODUTO MAIS VENDIDO</div>
-        <div style="font-size:20px; font-weight:700; color:#1b382b; font-family:serif; margin-top:8px; line-height:1.2;">${produtoMaisVendido}</div>
+      <!-- Card: Produto Mais Vendido -->
+      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:110px; display:flex; flex-direction:column; justify-content:space-between;">
+        <div style="font-family: system-ui, sans-serif; font-size:11px; font-weight:700; color:#857C70; text-transform:uppercase; letter-spacing:0.5px;">
+          PRODUTO MAIS VENDIDO
+        </div>
+        <div style="font-family: Georgia, 'Playfair Display', serif; font-size:18px; font-weight:700; color:#22392E; line-height:1.2; margin-top:8px;">
+          ${produtoMaisVendido}
+        </div>
       </div>
 
-      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:100px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-size:11px; font-weight:700; color:#8c8275; letter-spacing:0.5px; text-transform:uppercase;">PRODUTOS COM ESTOQUE BAIXO</div>
-        <div style="font-size:28px; font-weight:700; color:#1b382b; font-family:serif; margin-top:8px;">${produtosEstoqueBaixo}</div>
+      <!-- Card: Estoque Baixo -->
+      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:110px; display:flex; flex-direction:column; justify-content:space-between;">
+        <div style="font-family: system-ui, sans-serif; font-size:11px; font-weight:700; color:#857C70; text-transform:uppercase; letter-spacing:0.5px;">
+          PRODUTOS COM ESTOQUE BAIXO
+        </div>
+        <div style="font-family: Georgia, 'Playfair Display', serif; font-size:28px; font-weight:700; color:#22392E; margin-top:8px;">
+          ${produtosEstoqueBaixo}
+        </div>
       </div>
 
     </div>
