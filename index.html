@@ -1451,6 +1451,8 @@ async function definirEstoque(id, valor){
 
 /* ---------------- ADMIN: VENDAS ---------------- */
 
+/* ---------------- ADMIN: VENDAS ---------------- */
+
 async function renderVendasAdmin(){
   const { data: listaPedidos, error } = await supabaseClient
     .from('orders')
@@ -1470,28 +1472,23 @@ async function renderVendasAdmin(){
   pedidos = listaPedidos;
 
   const linhas = listaPedidos.map(pd => `
-  <tr>
-    <td>${formatarData(pd.criado_em)}</td>
-    <td>${pd.cliente || '—'}</td>
-    <td>${(pd.itens||[]).map(it => `${it.qtd}x ${it.nome}`).join('<br>')}</td>
-    <td><strong>${formatarMoeda(pd.total)}</strong></td>
-    <td>
-      ${pd.status === 'confirmado'
-        ? `<span class="pill ok">✓ Confirmado</span>`
-        : `
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn-sm" onclick="confirmarPedido(${pd.id})">
-              ✓ Confirmar compra
-            </button>
-            <button class="btn-sm" onclick="excluirPedidoPendente(${pd.id})" style="background:#b91c1c;">
-              ✕ Excluir
-            </button>
-          </div>
-        `
-      }
-    </td>
-  </tr>
-`).join('');
+    <tr>
+      <td>${formatarData(pd.criado_em)}</td>
+      <td>${pd.cliente || '—'}</td>
+      <td>${(pd.itens||[]).map(it => `${it.qtd}x ${it.nome}`).join('<br>')}</td>
+      <td><strong>${formatarMoeda(pd.total)}</strong></td>
+      <td>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button class="btn-sm" style="background:#1b382b; padding:6px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" onclick="mostrarToast('Compra confirmada ✓')">
+            ✓ Confirmar compra
+          </button>
+          <button class="btn-sm danger" style="padding:6px 10px; font-size:12px;" onclick="excluirPedido('${pd.id}')">
+            🗑️ Excluir
+          </button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
 
   return `
     <div class="admin-note">
@@ -1507,6 +1504,22 @@ async function renderVendasAdmin(){
       </table>
     </div>
   `;
+}
+
+function excluirPedido(id){
+  pedirConfirmacao(
+    "Excluir pedido",
+    "Tem certeza que deseja excluir este pedido pendente?",
+    async () => {
+      const { error } = await supabaseClient.from('orders').delete().eq('id', id);
+      if(error){
+        mostrarToast("Erro ao excluir pedido");
+        return;
+      }
+      mostrarToast("Pedido excluído ✓");
+      mudarAbaAdmin('vendas');
+    }
+  );
 }
   
 async function confirmarPedido(id){
