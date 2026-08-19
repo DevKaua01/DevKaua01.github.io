@@ -1511,14 +1511,36 @@ async function definirEstoque(id, valor){
 
 // Atualização Geral dos Dados sem Reset de Tela
 async function recarregarProdutos(){
-  const { data: prods } = await supabaseClient.from('products').select('*');
-  if (prods) PRODUTOS = prods;
+  try {
+    // 1. Busca os produtos no banco de dados
+    let { data: prods, error } = await supabaseClient.from('products').select('*');
 
-  const { data: ords } = await supabaseClient.from('orders').select('*');
-  if (ords) pedidos = ords;
+    // Se a tabela no seu Supabase for "produtos" em português:
+    if (error || !prods) {
+      const res = await supabaseClient.from('produtos').select('*');
+      prods = res.data;
+    }
 
-  // Atualiza a tela mantendo a aba onde você já está
-  await mudarAbaAdmin(window.abaAtualAdmin);
+    if (prods) {
+      PRODUTOS = prods;
+      
+      // 2. Renderiza a vitrine da loja principal se a função existir
+      if (typeof carregarProdutos === 'function') carregarProdutos();
+      if (typeof renderProdutos === 'function') renderProdutos();
+      if (typeof renderPromocoes === 'function') renderPromocoes();
+    }
+
+    // 3. Atualiza os pedidos
+    const { data: ords } = await supabaseClient.from('orders').select('*');
+    if (ords) pedidos = ords;
+
+    // 4. Mantém na aba do painel onde você está navegando
+    if (typeof mudarAbaAdmin === 'function') {
+      await mudarAbaAdmin(window.abaAtualAdmin || 'resumo');
+    }
+  } catch (err) {
+    console.error("Erro ao carregar produtos:", err);
+  }
 }
   
 /* ---------------- ADMIN: VENDAS ---------------- */
