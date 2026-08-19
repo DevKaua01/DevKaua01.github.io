@@ -1458,9 +1458,10 @@ async function renderEstoqueAdmin(){
       <td><strong>${p.nome}</strong></td>
       <td>${p.estoque || 0} un</td>
       <td>
-        <div style="display:flex; gap:6px;">
-          <button class="btn-sm" onclick="alterarEstoqueDireto('${p.id}', 1)">+1</button>
-          <button class="btn-sm" onclick="alterarEstoqueDireto('${p.id}', -1)">-1</button>
+        <div class="stock-adjust">
+          <button class="icon-btn" onclick="ajustarEstoque('${p.id}', -1)">−</button>
+          <input type="number" min="0" value="${p.estoque || 0}" onchange="definirEstoque('${p.id}', this.value)">
+          <button class="icon-btn" onclick="ajustarEstoque('${p.id}', 1)">+</button>
         </div>
       </td>
     </tr>
@@ -1482,77 +1483,42 @@ async function ajustarEstoque(id, delta){
   if(!prod) return;
 
   const novoEstoque = Math.max(0, Number(prod.estoque || 0) + delta);
-  prod.estoque = novoEstoque;
 
-  // Tenta atualizar na tabela 'produtos' primeiro
-  let { error } = await supabaseClient
-    .from('produtos')
+  const { error } = await supabaseClient
+    .from('products')
     .update({ estoque: novoEstoque })
     .eq('id', id);
 
-  if (error) {
-    // Se der erro, tenta na tabela 'products'
-    await supabaseClient
-      .from('products')
-      .update({ estoque: novoEstoque })
-      .eq('id', id);
+  if(error){
+    console.error(error);
+    mostrarToast("Erro ao atualizar estoque");
+    return;
   }
 
-  if (typeof mostrarToast === 'function') mostrarToast("Estoque atualizado! ✓");
+  mostrarToast("Estoque atualizado ✓");
   await recarregarProdutos();
+  mudarAbaAdmin('estoque');
 }
 
 async function definirEstoque(id, valor){
   const novoEstoque = Math.max(0, parseInt(valor) || 0);
-  const prod = (PRODUTOS || []).find(p => p.id == id);
-  if(prod) prod.estoque = novoEstoque;
 
-  let { error } = await supabaseClient
-    .from('produtos')
+  const { error } = await supabaseClient
+    .from('products')
     .update({ estoque: novoEstoque })
     .eq('id', id);
 
-  if (error) {
-    await supabaseClient
-      .from('products')
-      .update({ estoque: novoEstoque })
-      .eq('id', id);
+  if(error){
+    console.error(error);
+    mostrarToast("Erro ao atualizar estoque");
+    return;
   }
 
-  if (typeof mostrarToast === 'function') mostrarToast("Estoque atualizado! ✓");
+  mostrarToast("Estoque atualizado ✓");
   await recarregarProdutos();
+  mudarAbaAdmin('estoque');
 }
 
-async function recarregarProdutos(){
-  try {
-    // Busca direto da tabela original 'produtos'
-    const { data: prods, error: errProds } = await supabaseClient.from('produtos').select('*');
-    if (!errProds && prods) {
-      PRODUTOS = prods;
-    } else {
-      // Fallback caso a tabela no Supabase seja 'products'
-      const { data: prodsAlt } = await supabaseClient.from('products').select('*');
-      if (prodsAlt) PRODUTOS = prodsAlt;
-    }
-
-    // Busca os pedidos
-    const { data: ords } = await supabaseClient.from('orders').select('*');
-    if (ords) pedidos = ords;
-
-    // Atualiza a vitrine principal
-    if (typeof renderizarProdutos === 'function') renderizarProdutos();
-    if (typeof renderProdutos === 'function') renderProdutos();
-    if (typeof carregarProdutos === 'function') carregarProdutos();
-
-    // Atualiza o painel admin mantendo a aba atual
-    if (document.getElementById('adminBody') && typeof mudarAbaAdmin === 'function') {
-      await mudarAbaAdmin(window.abaAtualAdmin || 'resumo');
-    }
-  } catch (err) {
-    console.error("Erro ao recarregar:", err);
-  }
-}
-  
 /* ---------------- ADMIN: VENDAS ---------------- */
 
 async function renderVendasAdmin(){
