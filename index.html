@@ -1108,32 +1108,32 @@ async function verificarSessaoExistente(){
 
 /* ---------------- ADMIN: NAVEGAÇÃO DE ABAS ---------------- */
 
-window.faturamentoHistorico = window.faturamentoHistorico || 0;
-window.contagemProdutosHistorico = window.contagemProdutosHistorico || {};
+window.abaAtualAdmin = window.abaAtualAdmin || 'resumo';
 
+// 1. MUDAR ABA (Atualiza a memória da aba ativa)
 async function mudarAbaAdmin(aba){
+  window.abaAtualAdmin = aba || 'resumo';
+  
   document.querySelectorAll('.admin-tab').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.tab === aba);
+    btn.classList.toggle('active', btn.dataset.tab === window.abaAtualAdmin);
   });
 
   const body = document.getElementById('adminBody');
   if(!body) return;
-  
-  body.innerHTML = '<div class="loading">Carregando...</div>';
 
   try {
-    if(aba === 'dashboard' || aba === 'resumo') {
+    if(window.abaAtualAdmin === 'dashboard' || window.abaAtualAdmin === 'resumo') {
       body.innerHTML = await renderDashboardAdmin();
-    } else if(aba === 'produtos') {
+    } else if(window.abaAtualAdmin === 'produtos') {
       body.innerHTML = await renderProdutosAdmin();
-    } else if(aba === 'estoque') {
+    } else if(window.abaAtualAdmin === 'estoque') {
       body.innerHTML = await renderEstoqueAdmin();
-    } else if(aba === 'vendas') {
+    } else if(window.abaAtualAdmin === 'vendas') {
       body.innerHTML = await renderVendasAdmin();
     }
   } catch(err) {
     console.error("Erro ao mudar aba:", err);
-    body.innerHTML = `<div class="empty-state">Erro ao carregar aba.</div>`;
+    body.innerHTML = `<div class="empty-state">Erro ao carregar conteúdo.</div>`;
   }
 }
 
@@ -1454,61 +1454,66 @@ function excluirProduto(id){
 
 /* ---------------- ADMIN: ESTOQUE ---------------- */
 
-function renderEstoqueAdmin(){
-  const linhas = PRODUTOS.map(p => {
-    const baixo = (p.estoque||0) <= ESTOQUE_BAIXO;
-    return `
-      <tr class="${baixo ? 'low-stock' : ''}">
-        <td><img src="${p.imagem || IMAGEM_PLACEHOLDER}" alt=""></td>
-        <td>${p.nome}</td>
-        <td>
-          ${p.estoque <= 0
-            ? `<span class="pill danger">Esgotado</span>`
-            : baixo ? `<span class="pill warn">Estoque baixo</span>` : `<span class="pill ok">Disponível</span>`}
-        </td>
-        <td>
-          <div class="stock-adjust">
-            <button class="icon-btn" onclick="ajustarEstoque(${p.id}, -1)">−</button>
-            <input type="number" min="0" value="${p.estoque}" onchange="definirEstoque(${p.id}, this.value)">
-            <button class="icon-btn" onclick="ajustarEstoque(${p.id}, 1)">+</button>
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join('');
+async function renderEstoqueAdmin(){
+  const linhas = (PRODUTOS || []).map(p => `
+    <tr>
+      <td><strong>${p.nome}</strong></td>
+      <td>${p.estoque || 0} un</td>
+      <td>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-sm" onclick="alterarEstoqueDireto('${p.id}', 1)">+1</button>
+          <button class="btn-sm" onclick="alterarEstoqueDireto('${p.id}', -1)">-1</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
 
   return `
-    <div class="admin-note">
-      Produtos com estoque igual ou menor que ${ESTOQUE_BAIXO} unidades ficam destacados em laranja.
-      O estoque é compartilhado entre todos que acessam o site e é reduzido automaticamente a cada
-      pedido enviado pelo WhatsApp.
-    </div>
+    <div class="admin-note">Gerenciamento rápido de estoque dos produtos.</div>
     <div class="table-scroll">
       <table class="admin-table">
-        <thead><tr><th></th><th>Produto</th><th>Situação</th><th>Quantidade</th></tr></thead>
-        <tbody>${linhas || `<tr><td colspan="4" style="text-align:center; color:var(--slate); padding:24px;">Nenhum produto cadastrado.</td></tr>`}</tbody>
+        <thead><tr><th>Produto</th><th>Qtd Atual</th><th>Ações</th></tr></thead>
+        <tbody>${linhas}</tbody>
       </table>
     </div>
   `;
 }
 
 async function ajustarEstoque(id, delta){
-  const p = PRODUTOS.find(x => x.id === id);
-  if(!p) return;
-  const novoValor = Math.max(0, (p.estoque||0) + delta);
-  const { error } = await supabaseClient.from('products').update({ estoque: novoValor }).eq('id', id);
-  if(error){ mostrarToast("Erro ao atualizar estoque"); return; }
-  await recarregarProdutos();
-  mudarAbaAdmin('estoque');
+  const prod = PRODUTOS.find(p => p.id == id);
+  if(!prod) return;
+
+  const novoEstoque = Math.max(0, (prod.estoque || 0) + delta);
+  
+  // Atualiza no banco de dados (Supabase)
+  await supabaseClient
+    .from('products')
+    .update({ estoque: novoEstoque })
+    .eq('id', id);
+
+  prod.estoque = novoEstoque;
+  mostrarToast("Estoque atualizado! ✓");
+
+  // RECARREGA MANTENDO NA ABA ESTOQUE
+  await mudarAbaAdmin('estoque');
 }
 async function definirEstoque(id, valor){
-  const novoValor = Math.max(0, parseInt(valor) || 0);
-  const { error } = await supabaseClient.from('products').update({ estoque: novoValor }).eq('id', id);
-  if(error){ mostrarToast("Erro ao atualizar estoque"); return; }
-  await recarregarProdutos();
-  mudarAbaAdmin('estoque');
-}
+  const novoEstoque = Math.max(0, parseInt(valor) || 0);
 
+  // Atualiza no banco de dados (Supabase)
+  await supabaseClient
+    .from('products')
+    .update({ estoque: novoEstoque })
+    .eq('id', id);
+
+  const prod = PRODUTOS.find(p => p.id == id);
+  if(prod) prod.estoque = novoEstoque;
+
+  mostrarToast("Estoque atualizado! ✓");
+
+  // RECARREGA MANTENDO NA ABA ESTOQUE
+  await mudarAbaAdmin('estoque');
+}
 /* ---------------- ADMIN: VENDAS ---------------- */
 
 async function renderVendasAdmin(){
