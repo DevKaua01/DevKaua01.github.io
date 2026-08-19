@@ -1451,8 +1451,6 @@ async function definirEstoque(id, valor){
 
 /* ---------------- ADMIN: VENDAS ---------------- */
 
-/* ---------------- ADMIN: VENDAS ---------------- */
-
 async function renderVendasAdmin(){
   const { data: listaPedidos, error } = await supabaseClient
     .from('orders')
@@ -1479,7 +1477,7 @@ async function renderVendasAdmin(){
       <td><strong>${formatarMoeda(pd.total)}</strong></td>
       <td>
         <div style="display:flex; gap:6px; align-items:center;">
-          <button class="btn-sm" style="background:#1b382b; padding:6px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" onclick="mostrarToast('Compra confirmada ✓')">
+          <button class="btn-sm" style="background:#1b382b; padding:6px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" onclick="confirmarPedido('${pd.id}')">
             ✓ Confirmar compra
           </button>
           <button class="btn-sm danger" style="padding:6px 10px; font-size:12px;" onclick="excluirPedido('${pd.id}')">
@@ -1506,12 +1504,37 @@ async function renderVendasAdmin(){
   `;
 }
 
+// FUNÇÃO PARA CONFIRMAR O PEDIDO (Baixa no estoque + Remove dos pendentes)
+async function confirmarPedido(id){
+  const pedido = pedidos.find(p => p.id == id);
+  if(!pedido) return;
+
+  // 1. Dá baixa no estoque de cada item do pedido
+  if(pedido.itens && Array.isArray(pedido.itens)){
+    for(const item of pedido.itens){
+      const produtoLocal = PRODUTOS.find(p => p.id == item.id);
+      if(produtoLocal){
+        const novoEstoque = Math.max(0, (produtoLocal.estoque || 0) - item.qtd);
+        await supabaseClient.from('products').update({ estoque: novoEstoque }).eq('id', item.id);
+      }
+    }
+  }
+
+  // 2. Apaga o pedido finalizado da lista de pendentes
+  const idParaExcluir = isNaN(id) ? id : Number(id);
+  await supabaseClient.from('orders').delete().eq('id', idParaExcluir);
+
+  mostrarToast("Compra confirmada e estoque atualizado! ✓");
+  await recarregarProdutos();
+  mudarAbaAdmin('vendas');
+}
+
+// FUNÇÃO PARA EXCLUIR O PEDIDO (Sem alterar estoque)
 function excluirPedido(id){
   pedirConfirmacao(
     "Excluir pedido",
     "Tem certeza que deseja excluir este pedido pendente?",
     async () => {
-      // Tenta excluir pelo 'id' (convertendo para número caso o banco use inteiro) ou pelo campo de data/hora
       const idParaExcluir = isNaN(id) ? id : Number(id);
 
       const { error } = await supabaseClient
@@ -1521,53 +1544,15 @@ function excluirPedido(id){
 
       if(error){
         console.error("Erro ao excluir do Supabase:", error);
-        // Tentativa de fallback caso o campo no banco tenha outro nome
-        const { error: erro2 } = await supabaseClient
-          .from('orders')
-          .delete()
-          .eq('criado_em', id);
-
-        if(erro2){
-          mostrarToast("Erro ao excluir pedido do banco");
-          console.error("Erro no fallback:", erro2);
-          return;
-        }
+        mostrarToast("Erro no Supabase! Verifique as permissões de DELETE no banco.");
+        return;
       }
 
       mostrarToast("Pedido excluído ✓");
-
-      // Atualiza a lista na tela imediatamente
-      await renderVendasAdmin().then(html => {
-        document.getElementById('adminBody').innerHTML = html;
-      });
+      await recarregarProdutos();
+      mudarAbaAdmin('vendas');
     }
   );
-}
-  
-async function confirmarPedido(id){
-  if(!confirm("Confirmar esta compra?\n\nO estoque dos produtos será reduzido.")){
-    return;
-  }
-
-  const { data, error } = await supabaseClient.rpc('confirmar_pedido', {
-    p_order_id: id
-  });
-
-  if(error){
-    console.error(error);
-    mostrarToast("Erro ao confirmar o pedido.");
-    return;
-  }
-
-  if(data && data.sucesso === false){
-    mostrarToast(data.mensagem);
-    return;
-  }
-
-  mostrarToast("Compra confirmada ✓ Estoque atualizado.");
-
-  await recarregarProdutos();
-  mudarAbaAdmin('vendas');
 }
   
   async function excluirPedidoPendente(id){
