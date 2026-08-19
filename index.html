@@ -1509,35 +1509,41 @@ async function definirEstoque(id, valor){
   await mudarAbaAdmin('estoque');
 }
 
-// Atualização Geral dos Dados sem Reset de Tela
 async function recarregarProdutos(){
   try {
-    // 1. Busca os produtos no banco de dados
+    // 1. Busca produtos direto no Supabase
     let { data: prods, error } = await supabaseClient.from('products').select('*');
 
-    // Se a tabela no seu Supabase for "produtos" em português:
-    if (error || !prods) {
+    if (error || !prods || prods.length === 0) {
       const res = await supabaseClient.from('produtos').select('*');
-      prods = res.data;
+      if (res.data) prods = res.data;
     }
 
-    if (prods) {
+    if (prods && prods.length > 0) {
       PRODUTOS = prods;
-      
-      // 2. Renderiza a vitrine da loja principal se a função existir
-      if (typeof carregarProdutos === 'function') carregarProdutos();
-      if (typeof renderProdutos === 'function') renderProdutos();
-      if (typeof renderPromocoes === 'function') renderPromocoes();
     }
 
-    // 3. Atualiza os pedidos
+    // 2. Tenta renderizar os produtos na tela principal (evita travar se a função tiver outro nome)
+    if (typeof renderizarProdutos === 'function') {
+      renderizarProdutos();
+    } else if (typeof renderProdutos === 'function') {
+      renderProdutos();
+    } else if (typeof carregarProdutos === 'function') {
+      carregarProdutos();
+    } else if (typeof init === 'function') {
+      init();
+    }
+
+    // 3. Atualiza os pedidos sem quebrar a execução
     const { data: ords } = await supabaseClient.from('orders').select('*');
     if (ords) pedidos = ords;
 
-    // 4. Mantém na aba do painel onde você está navegando
-    if (typeof mudarAbaAdmin === 'function') {
+    // 4. Se o painel admin estiver aberto, atualiza a aba sem trocar de tela
+    const bodyAdmin = document.getElementById('adminBody');
+    if (bodyAdmin && typeof mudarAbaAdmin === 'function') {
       await mudarAbaAdmin(window.abaAtualAdmin || 'resumo');
     }
+
   } catch (err) {
     console.error("Erro ao carregar produtos:", err);
   }
