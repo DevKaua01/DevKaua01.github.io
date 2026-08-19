@@ -1139,12 +1139,28 @@ async function mudarAbaAdmin(aba){
 
 /* ---------------- ADMIN: DASHBOARD ---------------- */
 
+if (typeof faturamentoHistorico === 'undefined') var faturamentoHistorico = 0;
+if (typeof contagemProdutosHistorico === 'undefined') var contagemProdutosHistorico = {};
+if (typeof historicoPedidosCount === 'undefined') var historicoPedidosCount = 0;
+
 async function renderDashboardAdmin(){
-  // Pega o faturamento dos pedidos pendentes atuais + historico de confirmados
+  // 1. Busca os pedidos pendentes atualizados do Supabase
+  const { data: listaPedidos } = await supabaseClient
+    .from('orders')
+    .select('*');
+
+  if (listaPedidos) {
+    pedidos = listaPedidos;
+  }
+
+  // 2. Calcula o total de pedidos (Pendentes + Confirmados no histórico)
+  const totalPedidosEnviados = (pedidos || []).length + historicoPedidosCount;
+
+  // 3. Faturamento total
   const totalPendentes = (pedidos || []).reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
   const faturamentoTotal = faturamentoHistorico + totalPendentes;
 
-  // Descobre o produto mais vendido combinando historico e pendentes
+  // 4. Produto mais vendido
   const contagemGeral = { ...contagemProdutosHistorico };
   (pedidos || []).forEach(pd => {
     (pd.itens || []).forEach(it => {
@@ -1162,7 +1178,7 @@ async function renderDashboardAdmin(){
     }
   }
 
-  // Conta produtos com estoque baixo
+  // 5. Estoque baixo
   const produtosEstoqueBaixo = (PRODUTOS || []).filter(p => (p.estoque || 0) <= 5).length;
 
   return `
@@ -1178,7 +1194,7 @@ async function renderDashboardAdmin(){
           PEDIDOS ENVIADOS P/ WHATSAPP
         </div>
         <div style="font-family: Georgia, 'Playfair Display', serif; font-size:28px; font-weight:700; color:#22392E; margin-top:8px;">
-          ${(pedidos || []).length}
+          ${totalPedidosEnviados}
         </div>
       </div>
 
@@ -1553,6 +1569,8 @@ async function confirmarPedido(id){
   if(!pedido) return;
 
   faturamentoHistorico += Number(pedido.total) || 0;
+  historicoPedidosCount += 1; // Mantém a contagem quando o pedido for confirmado
+
   if(pedido.itens && Array.isArray(pedido.itens)){
     for(const item of pedido.itens){
       contagemProdutosHistorico[item.nome] = (contagemProdutosHistorico[item.nome] || 0) + (item.qtd || 1);
