@@ -1124,49 +1124,53 @@ function mudarAbaAdmin(aba){
 
 /* ---------------- ADMIN: DASHBOARD ---------------- */
 
-async function renderDashboard(){
-  const { data: pedidosBanco, error } = await supabaseClient
+async function renderDashboardAdmin(){
+  // Busca todos os pedidos para calcular as estatísticas do histórico
+  const { data: listaPedidos, error } = await supabaseClient
     .from('orders')
-    .select('*')
-    .order('criado_em', { ascending: false });
+    .select('*');
 
-  const listaPedidos = error ? [] : pedidosBanco;
+  if(error || !listaPedidos){
+    return `<div class="empty-state">Erro ao carregar dados do painel.</div>`;
+  }
 
-  const totalPedidos = listaPedidos.length;
-  const faturamento = listaPedidos.reduce((s,p) => s + Number(p.total), 0);
-  const estoqueBaixo = PRODUTOS.filter(p => (p.estoque||0) <= ESTOQUE_BAIXO).length;
+  // Considera os pedidos concluídos (ou sem status definido)
+  const pedidosConcluidos = listaPedidos.filter(p => p.status === 'concluido' || !p.status);
 
-  const contagem = {};
-  listaPedidos.forEach(pd => (pd.itens||[]).forEach(it => {
-    contagem[it.nome] = (contagem[it.nome]||0) + it.qtd;
-  }));
-  let maisVendido = "—";
-  let maxQtd = 0;
-  Object.entries(contagem).forEach(([nome, qtd]) => {
-    if(qtd > maxQtd){ maxQtd = qtd; maisVendido = nome; }
+  // 1. Calcula o Faturamento Total
+  const faturamentoTotal = pedidosConcluidos.reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
+
+  // 2. Descobre o Produto Mais Vendido
+  const contagemProdutos = {};
+  pedidosConcluidos.forEach(pd => {
+    (pd.itens || []).forEach(it => {
+      contagemProdutos[it.nome] = (contagemProdutos[it.nome] || 0) + (it.qtd || 1);
+    });
   });
 
+  let produtoMaisVendido = 'Nenhum';
+  let maxVendas = 0;
+
+  for(const [nome, qtd] of Object.entries(contagemProdutos)){
+    if(qtd > maxVendas){
+      maxVendas = qtd;
+      produtoMaisVendido = `${nome} (${qtd} un)`;
+    }
+  }
+
   return `
-    <div class="admin-note">
-      📌 Estes números vêm direto do banco de dados online — são os mesmos para você em qualquer
-      computador ou celular, e reúnem os pedidos de todos os clientes que compraram pelo site.
-    </div>
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-label">Pedidos enviados p/ WhatsApp</div>
-        <div class="kpi-value">${totalPedidos}</div>
+    <div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:20px;">
+      <div class="stat-card" style="background:var(--card-bg, #1e293b); padding:15px; border-radius:8px;">
+        <div class="stat-title" style="color:#94a3b8; font-size:13px;">Faturamento Total</div>
+        <div class="stat-value" style="color:#10b981; font-size:22px; font-weight:bold;">${formatarMoeda(faturamentoTotal)}</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Faturamento estimado</div>
-        <div class="kpi-value">${formatarMoeda(faturamento)}</div>
+      <div class="stat-card" style="background:var(--card-bg, #1e293b); padding:15px; border-radius:8px;">
+        <div class="stat-title" style="color:#94a3b8; font-size:13px;">Produto Mais Vendido</div>
+        <div class="stat-value" style="font-size:16px; font-weight:bold; margin-top:4px;">${produtoMaisVendido}</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Produto mais vendido</div>
-        <div class="kpi-value" style="font-size:16px;">${maisVendido}</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Produtos com estoque baixo</div>
-        <div class="kpi-value">${estoqueBaixo}</div>
+      <div class="stat-card" style="background:var(--card-bg, #1e293b); padding:15px; border-radius:8px;">
+        <div class="stat-title" style="color:#94a3b8; font-size:13px;">Vendas Concluídas</div>
+        <div class="stat-value" style="font-size:22px; font-weight:bold;">${pedidosConcluidos.length}</div>
       </div>
     </div>
   `;
@@ -1504,12 +1508,12 @@ async function renderVendasAdmin(){
   `;
 }
 
-// FUNÇÃO PARA CONFIRMAR O PEDIDO (Baixa no estoque + Remove dos pendentes)
+// CONFIRMAR PEDIDO (Atualiza para 'concluido', baixa o estoque e MANTÉM no resumo)
 async function confirmarPedido(id){
   const pedido = pedidos.find(p => p.id == id);
   if(!pedido) return;
 
-  // 1. Dá baixa no estoque de cada item do pedido
+  // 1. Dar baixa no estoque dos produtos
   if(pedido.itens && Array.isArray(pedido.itens)){
     for(const item of pedido.itens){
       const produtoLocal = PRODUTOS.find(p => p.id == item.id);
@@ -1520,35 +1524,44 @@ async function confirmarPedido(id){
     }
   }
 
-  // 2. Apaga o pedido finalizado da lista de pendentes
-  const idParaExcluir = isNaN(id) ? id : Number(id);
-  await supabaseClient.from('orders').delete().eq('id', idParaExcluir);
+  // 2. Atualiza o status para 'concluido' no Supabase
+  const idPedido = isNaN(id) ? id : Number(id);
+  const { error } = await supabaseClient
+    .from('orders')
+    .update({ status: 'concluido' })
+    .eq('id', idPedido);
+
+  if(error){
+    console.error("Erro ao confirmar pedido:", error);
+    mostrarToast("Erro ao confirmar pedido.");
+    return;
+  }
 
   mostrarToast("Compra confirmada e estoque atualizado! ✓");
   await recarregarProdutos();
   mudarAbaAdmin('vendas');
 }
 
-// FUNÇÃO PARA EXCLUIR O PEDIDO (Sem alterar estoque)
+// EXCLUIR/CANCELAR PEDIDO (Atualiza para 'cancelado', NÃO entra no resumo e sai dos pendentes)
 function excluirPedido(id){
   pedirConfirmacao(
     "Excluir pedido",
-    "Tem certeza que deseja excluir este pedido pendente?",
+    "Tem certeza que deseja cancelar este pedido? O valor não entrará no faturamento.",
     async () => {
-      const idParaExcluir = isNaN(id) ? id : Number(id);
+      const idPedido = isNaN(id) ? id : Number(id);
 
       const { error } = await supabaseClient
         .from('orders')
-        .delete()
-        .eq('id', idParaExcluir);
+        .update({ status: 'cancelado' })
+        .eq('id', idPedido);
 
       if(error){
-        console.error("Erro ao excluir do Supabase:", error);
-        mostrarToast("Erro no Supabase! Verifique as permissões de DELETE no banco.");
+        console.error("Erro ao excluir pedido:", error);
+        mostrarToast("Erro ao excluir pedido.");
         return;
       }
 
-      mostrarToast("Pedido excluído ✓");
+      mostrarToast("Pedido excluído/cancelado ✓");
       await recarregarProdutos();
       mudarAbaAdmin('vendas');
     }
