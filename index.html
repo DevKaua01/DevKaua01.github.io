@@ -691,31 +691,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-/* =========================================================================
-   CONFIGURAÇÕES GERAIS — EDITE AQUI
-   =========================================================================
-   Veja o arquivo INSTRUCOES-BANCO-DE-DADOS.md para o passo a passo completo
-   de como criar sua conta gratuita no Supabase e preencher os valores abaixo.
-   ========================================================================= */
 
-// Número de WhatsApp que recebe os pedidos (código do país + DDD + número, só dígitos)
-const WHATSAPP_NUMERO = "5521975639844";
-
-// Cole aqui a "Project URL" e a chave "anon public" do seu projeto Supabase
-// (Painel Supabase → Project Settings → API)
+  
+const WHATSAPP_NUMERO = "5521980814264";
 const SUPABASE_URL = "https://emafhhovdrlzuqhrsvys.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVtYWZoaG92ZHJsenVxaHJzdnlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNjIxOTEsImV4cCI6MjEwMjYzODE5MX0.I3O4YXxYaDfoG5fiEWqGPvg496wdaUvyxxgjJc9KOOA";
-
 const ESTOQUE_BAIXO = 5;
-
-// Imagem usada quando um produto não tem foto cadastrada
 const IMAGEM_PLACEHOLDER = "https://images.unsplash.com/photo-1556228720-195a672e8a03?q=80&w=600&auto=format&fit=crop";
-
-/* =========================================================================
-   A partir daqui é lógica do site — não precisa mexer.
-   Produtos, estoque e pedidos agora ficam num banco de dados online
-   (Supabase), compartilhado entre TODOS que acessarem o site.
-   ========================================================================= */
 
 const configuracaoPendente = SUPABASE_URL.includes("COLE_AQUI") || SUPABASE_ANON_KEY.includes("COLE_AQUI");
 let supabaseClient = null;
@@ -733,8 +715,8 @@ let termoBusca = "";
 let isAdmin = false;
 let abaAdminAtual = "dashboard";
 let editandoId = null;
-let arquivoImagemSelecionado = null; // File escolhido no formulário, ainda não enviado
-let imagemPathAtual = null; // caminho no Storage da imagem já salva (ao editar um produto)
+let arquivoImagemSelecionado = null; 
+let imagemPathAtual = null; 
 let clienteNome = "";
 let confirmCallback = null;
 
