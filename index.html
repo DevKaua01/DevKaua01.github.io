@@ -1478,7 +1478,16 @@ async function renderVendasAdmin(){
     <td>
       ${pd.status === 'confirmado'
         ? `<span class="pill ok">✓ Confirmado</span>`
-        : `<button class="btn-sm" onclick="confirmarPedido(${pd.id})">✓ Confirmar compra</button>`
+        : `
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn-sm" onclick="confirmarPedido(${pd.id})">
+              ✓ Confirmar compra
+            </button>
+            <button class="btn-sm" onclick="excluirPedidoPendente(${pd.id})" style="background:#b91c1c;">
+              ✕ Excluir
+            </button>
+          </div>
+        `
       }
     </td>
   </tr>
@@ -1523,6 +1532,27 @@ async function confirmarPedido(id){
   mostrarToast("Compra confirmada ✓ Estoque atualizado.");
 
   await recarregarProdutos();
+  mudarAbaAdmin('vendas');
+}
+  
+  async function excluirPedidoPendente(id){
+  if(!confirm("Excluir este pedido?\n\nEssa ação não altera o estoque.")){
+    return;
+  }
+
+  const { error } = await supabaseClient
+    .from('orders')
+    .delete()
+    .eq('id', id)
+    .eq('status', 'pendente');
+
+  if(error){
+    console.error(error);
+    mostrarToast("Erro ao excluir o pedido.");
+    return;
+  }
+
+  mostrarToast("Pedido excluído ✓");
   mudarAbaAdmin('vendas');
 }
   
