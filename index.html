@@ -1139,13 +1139,12 @@ async function mudarAbaAdmin(aba){
 
 /* ---------------- ADMIN: DASHBOARD ---------------- */
 
-if (typeof faturamentoHistorico === 'undefined') var faturamentoHistorico = 0;
-if (typeof contagemProdutosHistorico === 'undefined') var contagemProdutosHistorico = {};
-
 async function renderDashboardAdmin(){
+  // Pega o faturamento dos pedidos pendentes atuais + historico de confirmados
   const totalPendentes = (pedidos || []).reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
   const faturamentoTotal = faturamentoHistorico + totalPendentes;
 
+  // Descobre o produto mais vendido combinando historico e pendentes
   const contagemGeral = { ...contagemProdutosHistorico };
   (pedidos || []).forEach(pd => {
     (pd.itens || []).forEach(it => {
@@ -1159,19 +1158,37 @@ async function renderDashboardAdmin(){
   for(const [nome, qtd] of Object.entries(contagemGeral)){
     if(qtd > maxVendas){
       maxVendas = qtd;
-      produtoMaisVendido = `${nome} (${qtd} un)`;
+      produtoMaisVendido = nome;
     }
   }
 
+  // Conta produtos com estoque baixo (exemplo: menor ou igual a 5)
+  const produtosEstoqueBaixo = (PRODUTOS || []).filter(p => (p.estoque || 0) <= 5).length;
+
   return `
-    <div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:20px;">
-      <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
-        <div class="stat-title" style="color:#94a3b8; font-size:13px;">Faturamento Total</div>
-        <div class="stat-value" style="color:#10b981; font-size:22px; font-weight:bold;">${formatarMoeda(faturamentoTotal)}</div>
+    <div class="admin-note">
+      📌 Estes números vêm direto do banco de dados online — são os mesmos para você em qualquer computador ou celular, e reúnem os pedidos de todos os clientes que compraram pelo site.
+    </div>
+    
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-title">PEDIDOS ENVIADOS P/ WHATSAPP</div>
+        <div class="stat-value">${(pedidos || []).length}</div>
       </div>
-      <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
-        <div class="stat-title" style="color:#94a3b8; font-size:13px;">Produto Mais Vendido</div>
-        <div class="stat-value" style="font-size:16px; font-weight:bold; margin-top:4px;">${produtoMaisVendido}</div>
+
+      <div class="stat-card">
+        <div class="stat-title">FATURAMENTO ESTIMADO</div>
+        <div class="stat-value">${formatarMoeda(faturamentoTotal)}</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-title">PRODUTO MAIS VENDIDO</div>
+        <div class="stat-value" style="font-size: 20px;">${produtoMaisVendido}</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-title">PRODUTOS COM ESTOQUE BAIXO</div>
+        <div class="stat-value">${produtosEstoqueBaixo}</div>
       </div>
     </div>
   `;
