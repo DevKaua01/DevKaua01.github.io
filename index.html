@@ -1124,46 +1124,52 @@ function mudarAbaAdmin(aba){
 
 /* ---------------- ADMIN: DASHBOARD ---------------- */
 
-if (typeof faturamentoHistorico === 'undefined') var faturamentoHistorico = 0;
-if (typeof contagemProdutosHistorico === 'undefined') var contagemProdutosHistorico = {};
-
 async function renderDashboardAdmin(){
-  // Pega o faturamento dos pedidos pendentes atuais + historico de confirmados
-  const totalPendentes = pedidos.reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
-  const faturamentoTotal = faturamentoHistorico + totalPendentes;
+  try {
+    // Pega o faturamento dos pedidos pendentes atuais + historico de confirmados
+    const totalPendentes = (pedidos || []).reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
+    const faturamentoTotal = (typeof faturamentoHistorico !== 'undefined' ? faturamentoHistorico : 0) + totalPendentes;
 
-  // Descobre o produto mais vendido combinando historico e pendentes
-  const contagemGeral = { ...contagemProdutosHistorico };
-  pedidos.forEach(pd => {
-    (pd.itens || []).forEach(it => {
-      contagemGeral[it.nome] = (contagemGeral[it.nome] || 0) + (it.qtd || 1);
+    // Descobre o produto mais vendido combinando historico e pendentes
+    const contagemGeral = { ...(typeof contagemProdutosHistorico !== 'undefined' ? contagemProdutosHistorico : {}) };
+    (pedidos || []).forEach(pd => {
+      (pd.itens || []).forEach(it => {
+        contagemGeral[it.nome] = (contagemGeral[it.nome] || 0) + (it.qtd || 1);
+      });
     });
-  });
 
-  let produtoMaisVendido = 'Nenhum';
-  let maxVendas = 0;
+    let produtoMaisVendido = 'Nenhum';
+    let maxVendas = 0;
 
-  for(const [nome, qtd] of Object.entries(contagemGeral)){
-    if(qtd > maxVendas){
-      maxVendas = qtd;
-      produtoMaisVendido = `${nome} (${qtd} un)`;
+    for(const [nome, qtd] of Object.entries(contagemGeral)){
+      if(qtd > maxVendas){
+        maxVendas = qtd;
+        produtoMaisVendido = `${nome} (${qtd} un)`;
+      }
     }
-  }
 
-  return `
-    <div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:20px;">
-      <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
-        <div class="stat-title" style="color:#94a3b8; font-size:13px;">Faturamento Total</div>
-        <div class="stat-value" style="color:#10b981; font-size:22px; font-weight:bold;">${formatarMoeda(faturamentoTotal)}</div>
+    return `
+      <div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:20px;">
+        <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
+          <div class="stat-title" style="color:#94a3b8; font-size:13px;">Faturamento Total</div>
+          <div class="stat-value" style="color:#10b981; font-size:22px; font-weight:bold;">${formatarMoeda(faturamentoTotal)}</div>
+        </div>
+        <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
+          <div class="stat-title" style="color:#94a3b8; font-size:13px;">Produto Mais Vendido</div>
+          <div class="stat-value" style="font-size:16px; font-weight:bold; margin-top:4px;">${produtoMaisVendido}</div>
+        </div>
       </div>
-      <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
-        <div class="stat-title" style="color:#94a3b8; font-size:13px;">Produto Mais Vendido</div>
-        <div class="stat-value" style="font-size:16px; font-weight:bold; margin-top:4px;">${produtoMaisVendido}</div>
-      </div>
-    </div>
-  `;
+    `;
+  } catch (err) {
+    console.error("Erro ao carregar resumo:", err);
+    return `<div class="empty-state">Erro ao carregar dados do resumo.</div>`;
+  }
 }
 
+// Apelido para garantir que funcione caso o seu script chame por 'renderResumoAdmin'
+async function renderResumoAdmin(){
+  return await renderDashboardAdmin();
+}
 /* ---------------- ADMIN: PRODUTOS (CRUD no banco de dados) ---------------- */
 
 function renderProdutosAdmin(){
