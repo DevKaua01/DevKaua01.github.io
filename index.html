@@ -1110,10 +1110,9 @@ async function verificarSessaoExistente(){
 
 window.abaAtualAdmin = window.abaAtualAdmin || 'resumo';
 
-// 1. MUDAR ABA (Atualiza a memória da aba ativa)
 async function mudarAbaAdmin(aba){
-  window.abaAtualAdmin = aba || 'resumo';
-  
+  if (aba) window.abaAtualAdmin = aba;
+
   document.querySelectorAll('.admin-tab').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === window.abaAtualAdmin);
   });
@@ -1122,7 +1121,7 @@ async function mudarAbaAdmin(aba){
   if(!body) return;
 
   try {
-    if(window.abaAtualAdmin === 'dashboard' || window.abaAtualAdmin === 'resumo') {
+    if(window.abaAtualAdmin === 'resumo' || window.abaAtualAdmin === 'dashboard') {
       body.innerHTML = await renderDashboardAdmin();
     } else if(window.abaAtualAdmin === 'produtos') {
       body.innerHTML = await renderProdutosAdmin();
@@ -1132,8 +1131,7 @@ async function mudarAbaAdmin(aba){
       body.innerHTML = await renderVendasAdmin();
     }
   } catch(err) {
-    console.error("Erro ao mudar aba:", err);
-    body.innerHTML = `<div class="empty-state">Erro ao carregar conteúdo.</div>`;
+    console.error("Erro ao alternar aba:", err);
   }
 }
 
@@ -1485,22 +1483,20 @@ async function ajustarEstoque(id, delta){
 
   const novoEstoque = Math.max(0, (prod.estoque || 0) + delta);
   
-  // Atualiza no banco de dados (Supabase)
   await supabaseClient
     .from('products')
     .update({ estoque: novoEstoque })
     .eq('id', id);
 
   prod.estoque = novoEstoque;
-  mostrarToast("Estoque atualizado! ✓");
-
-  // RECARREGA MANTENDO NA ABA ESTOQUE
+  if (typeof mostrarToast === 'function') mostrarToast("Estoque atualizado! ✓");
+  
+  // Recarrega mantendo rigorosamente na aba de estoque
   await mudarAbaAdmin('estoque');
 }
 async function definirEstoque(id, valor){
   const novoEstoque = Math.max(0, parseInt(valor) || 0);
 
-  // Atualiza no banco de dados (Supabase)
   await supabaseClient
     .from('products')
     .update({ estoque: novoEstoque })
@@ -1509,11 +1505,22 @@ async function definirEstoque(id, valor){
   const prod = PRODUTOS.find(p => p.id == id);
   if(prod) prod.estoque = novoEstoque;
 
-  mostrarToast("Estoque atualizado! ✓");
-
-  // RECARREGA MANTENDO NA ABA ESTOQUE
+  if (typeof mostrarToast === 'function') mostrarToast("Estoque atualizado! ✓");
   await mudarAbaAdmin('estoque');
 }
+
+// Atualização Geral dos Dados sem Reset de Tela
+async function recarregarProdutos(){
+  const { data: prods } = await supabaseClient.from('products').select('*');
+  if (prods) PRODUTOS = prods;
+
+  const { data: ords } = await supabaseClient.from('orders').select('*');
+  if (ords) pedidos = ords;
+
+  // Atualiza a tela mantendo a aba onde você já está
+  await mudarAbaAdmin(window.abaAtualAdmin);
+}
+  
 /* ---------------- ADMIN: VENDAS ---------------- */
 
 async function renderVendasAdmin(){
