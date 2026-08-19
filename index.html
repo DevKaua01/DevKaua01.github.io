@@ -1124,34 +1124,26 @@ function mudarAbaAdmin(aba){
 
 /* ---------------- ADMIN: DASHBOARD ---------------- */
 
+if (typeof faturamentoHistorico === 'undefined') var faturamentoHistorico = 0;
+if (typeof contagemProdutosHistorico === 'undefined') var contagemProdutosHistorico = {};
+
 async function renderDashboardAdmin(){
-  // Busca todos os pedidos para calcular as estatísticas do histórico
-  const { data: listaPedidos, error } = await supabaseClient
-    .from('orders')
-    .select('*');
+  // Pega o faturamento dos pedidos pendentes atuais + historico de confirmados
+  const totalPendentes = pedidos.reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
+  const faturamentoTotal = faturamentoHistorico + totalPendentes;
 
-  if(error || !listaPedidos){
-    return `<div class="empty-state">Erro ao carregar dados do painel.</div>`;
-  }
-
-  // Considera os pedidos concluídos (ou sem status definido)
-  const pedidosConcluidos = listaPedidos.filter(p => p.status === 'concluido' || !p.status);
-
-  // 1. Calcula o Faturamento Total
-  const faturamentoTotal = pedidosConcluidos.reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
-
-  // 2. Descobre o Produto Mais Vendido
-  const contagemProdutos = {};
-  pedidosConcluidos.forEach(pd => {
+  // Descobre o produto mais vendido combinando historico e pendentes
+  const contagemGeral = { ...contagemProdutosHistorico };
+  pedidos.forEach(pd => {
     (pd.itens || []).forEach(it => {
-      contagemProdutos[it.nome] = (contagemProdutos[it.nome] || 0) + (it.qtd || 1);
+      contagemGeral[it.nome] = (contagemGeral[it.nome] || 0) + (it.qtd || 1);
     });
   });
 
   let produtoMaisVendido = 'Nenhum';
   let maxVendas = 0;
 
-  for(const [nome, qtd] of Object.entries(contagemProdutos)){
+  for(const [nome, qtd] of Object.entries(contagemGeral)){
     if(qtd > maxVendas){
       maxVendas = qtd;
       produtoMaisVendido = `${nome} (${qtd} un)`;
@@ -1160,17 +1152,13 @@ async function renderDashboardAdmin(){
 
   return `
     <div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:20px;">
-      <div class="stat-card" style="background:var(--card-bg, #1e293b); padding:15px; border-radius:8px;">
+      <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
         <div class="stat-title" style="color:#94a3b8; font-size:13px;">Faturamento Total</div>
         <div class="stat-value" style="color:#10b981; font-size:22px; font-weight:bold;">${formatarMoeda(faturamentoTotal)}</div>
       </div>
-      <div class="stat-card" style="background:var(--card-bg, #1e293b); padding:15px; border-radius:8px;">
+      <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
         <div class="stat-title" style="color:#94a3b8; font-size:13px;">Produto Mais Vendido</div>
         <div class="stat-value" style="font-size:16px; font-weight:bold; margin-top:4px;">${produtoMaisVendido}</div>
-      </div>
-      <div class="stat-card" style="background:var(--card-bg, #1e293b); padding:15px; border-radius:8px;">
-        <div class="stat-title" style="color:#94a3b8; font-size:13px;">Vendas Concluídas</div>
-        <div class="stat-value" style="font-size:22px; font-weight:bold;">${pedidosConcluidos.length}</div>
       </div>
     </div>
   `;
@@ -1462,10 +1450,10 @@ async function renderVendasAdmin(){
     .order('criado_em', { ascending: false });
 
   if(error || !listaPedidos || listaPedidos.length === 0){
+    pedidos = [];
     return `
       <div class="admin-note">
-        Nenhum pedido enviado pelo WhatsApp ainda. Assim que um cliente finalizar a compra, o pedido
-        aparece aqui automaticamente — para qualquer cliente, em qualquer dispositivo.
+        Histórico de todos os pedidos enviados pelo WhatsApp, vindos do banco de dados online.
       </div>
       <div class="empty-state">Nenhuma venda registrada.</div>
     `;
@@ -1481,7 +1469,7 @@ async function renderVendasAdmin(){
       <td><strong>${formatarMoeda(pd.total)}</strong></td>
       <td>
         <div style="display:flex; gap:6px; align-items:center;">
-          <button class="btn-sm" style="background:#1b382b; padding:6px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px;" onclick="confirmarPedido('${pd.id}')">
+          <button class="btn-sm" style="background:#1b382b; padding:6px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px; color:white;" onclick="confirmarPedido('${pd.id}')">
             ✓ Confirmar compra
           </button>
           <button class="btn-sm danger" style="padding:6px 10px; font-size:12px;" onclick="excluirPedido('${pd.id}')">
@@ -1508,14 +1496,17 @@ async function renderVendasAdmin(){
   `;
 }
 
-// CONFIRMAR PEDIDO (Atualiza para 'concluido', baixa o estoque e MANTÉM no resumo)
 async function confirmarPedido(id){
   const pedido = pedidos.find(p => p.id == id);
   if(!pedido) return;
 
-  // 1. Dar baixa no estoque dos produtos
+  // 1. Somar ao historico de faturamento e produtos mais vendidos
+  faturamentoHistorico += Number(pedido.total) || 0;
   if(pedido.itens && Array.isArray(pedido.itens)){
     for(const item of pedido.itens){
+      contagemProdutosHistorico[item.nome] = (contagemProdutosHistorico[item.nome] || 0) + (item.qtd || 1);
+      
+      // Baixa no estoque dos produtos
       const produtoLocal = PRODUTOS.find(p => p.id == item.id);
       if(produtoLocal){
         const novoEstoque = Math.max(0, (produtoLocal.estoque || 0) - item.qtd);
@@ -1524,44 +1515,25 @@ async function confirmarPedido(id){
     }
   }
 
-  // 2. Atualiza o status para 'concluido' no Supabase
-  const idPedido = isNaN(id) ? id : Number(id);
-  const { error } = await supabaseClient
-    .from('orders')
-    .update({ status: 'concluido' })
-    .eq('id', idPedido);
-
-  if(error){
-    console.error("Erro ao confirmar pedido:", error);
-    mostrarToast("Erro ao confirmar pedido.");
-    return;
-  }
+  // 2. Apaga do banco para sumir dos pendentes
+  const idParaExcluir = isNaN(id) ? id : Number(id);
+  await supabaseClient.from('orders').delete().eq('id', idParaExcluir);
 
   mostrarToast("Compra confirmada e estoque atualizado! ✓");
   await recarregarProdutos();
   mudarAbaAdmin('vendas');
 }
 
-// EXCLUIR/CANCELAR PEDIDO (Atualiza para 'cancelado', NÃO entra no resumo e sai dos pendentes)
+// EXCLUIR PEDIDO: Apaga sem registrar no faturamento e sem alterar estoque
 function excluirPedido(id){
   pedirConfirmacao(
     "Excluir pedido",
-    "Tem certeza que deseja cancelar este pedido? O valor não entrará no faturamento.",
+    "Tem certeza que deseja excluir este pedido pendente?",
     async () => {
-      const idPedido = isNaN(id) ? id : Number(id);
+      const idParaExcluir = isNaN(id) ? id : Number(id);
+      await supabaseClient.from('orders').delete().eq('id', idParaExcluir);
 
-      const { error } = await supabaseClient
-        .from('orders')
-        .update({ status: 'cancelado' })
-        .eq('id', idPedido);
-
-      if(error){
-        console.error("Erro ao excluir pedido:", error);
-        mostrarToast("Erro ao excluir pedido.");
-        return;
-      }
-
-      mostrarToast("Pedido excluído/cancelado ✓");
+      mostrarToast("Pedido excluído ✓");
       await recarregarProdutos();
       mudarAbaAdmin('vendas');
     }
