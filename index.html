@@ -1108,68 +1108,72 @@ async function verificarSessaoExistente(){
 
 /* ---------------- ADMIN: NAVEGAÇÃO DE ABAS ---------------- */
 
-function mudarAbaAdmin(aba){
-  abaAdminAtual = aba;
+window.faturamentoHistorico = window.faturamentoHistorico || 0;
+window.contagemProdutosHistorico = window.contagemProdutosHistorico || {};
+
+async function mudarAbaAdmin(aba){
   document.querySelectorAll('.admin-tab').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === aba);
   });
-  const body = document.getElementById('adminBody');
-  body.innerHTML = `<div class="empty-state">Carregando...</div>`;
 
-  if(aba === 'dashboard') renderDashboard().then(html => { if(abaAdminAtual==='dashboard') body.innerHTML = html; });
-  if(aba === 'produtos') body.innerHTML = renderProdutosAdmin();
-  if(aba === 'estoque') body.innerHTML = renderEstoqueAdmin();
-  if(aba === 'vendas') renderVendasAdmin().then(html => { if(abaAdminAtual==='vendas') body.innerHTML = html; });
+  const body = document.getElementById('adminBody');
+  if(!body) return;
+  
+  body.innerHTML = '<div class="loading">Carregando...</div>';
+
+  try {
+    if(aba === 'dashboard' || aba === 'resumo') {
+      body.innerHTML = await renderDashboardAdmin();
+    } else if(aba === 'produtos') {
+      body.innerHTML = await renderProdutosAdmin();
+    } else if(aba === 'estoque') {
+      body.innerHTML = await renderEstoqueAdmin();
+    } else if(aba === 'vendas') {
+      body.innerHTML = await renderVendasAdmin();
+    }
+  } catch(err) {
+    console.error("Erro ao mudar aba:", err);
+    body.innerHTML = `<div class="empty-state">Erro ao carregar aba.</div>`;
+  }
 }
 
 /* ---------------- ADMIN: DASHBOARD ---------------- */
 
 async function renderDashboardAdmin(){
-  try {
-    // Pega o faturamento dos pedidos pendentes atuais + historico de confirmados
-    const totalPendentes = (pedidos || []).reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
-    const faturamentoTotal = (typeof faturamentoHistorico !== 'undefined' ? faturamentoHistorico : 0) + totalPendentes;
+  const totalPendentes = (pedidos || []).reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
+  const faturamentoTotal = window.faturamentoHistorico + totalPendentes;
 
-    // Descobre o produto mais vendido combinando historico e pendentes
-    const contagemGeral = { ...(typeof contagemProdutosHistorico !== 'undefined' ? contagemProdutosHistorico : {}) };
-    (pedidos || []).forEach(pd => {
-      (pd.itens || []).forEach(it => {
-        contagemGeral[it.nome] = (contagemGeral[it.nome] || 0) + (it.qtd || 1);
-      });
+  const contagemGeral = { ...window.contagemProdutosHistorico };
+  (pedidos || []).forEach(pd => {
+    (pd.itens || []).forEach(it => {
+      contagemGeral[it.nome] = (contagemGeral[it.nome] || 0) + (it.qtd || 1);
     });
+  });
 
-    let produtoMaisVendido = 'Nenhum';
-    let maxVendas = 0;
+  let produtoMaisVendido = 'Nenhum';
+  let maxVendas = 0;
 
-    for(const [nome, qtd] of Object.entries(contagemGeral)){
-      if(qtd > maxVendas){
-        maxVendas = qtd;
-        produtoMaisVendido = `${nome} (${qtd} un)`;
-      }
+  for(const [nome, qtd] of Object.entries(contagemGeral)){
+    if(qtd > maxVendas){
+      maxVendas = qtd;
+      produtoMaisVendido = `${nome} (${qtd} un)`;
     }
-
-    return `
-      <div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:20px;">
-        <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
-          <div class="stat-title" style="color:#94a3b8; font-size:13px;">Faturamento Total</div>
-          <div class="stat-value" style="color:#10b981; font-size:22px; font-weight:bold;">${formatarMoeda(faturamentoTotal)}</div>
-        </div>
-        <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
-          <div class="stat-title" style="color:#94a3b8; font-size:13px;">Produto Mais Vendido</div>
-          <div class="stat-value" style="font-size:16px; font-weight:bold; margin-top:4px;">${produtoMaisVendido}</div>
-        </div>
-      </div>
-    `;
-  } catch (err) {
-    console.error("Erro ao carregar resumo:", err);
-    return `<div class="empty-state">Erro ao carregar dados do resumo.</div>`;
   }
-}
 
-// Apelido para garantir que funcione caso o seu script chame por 'renderResumoAdmin'
-async function renderResumoAdmin(){
-  return await renderDashboardAdmin();
+  return `
+    <div class="stats-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:20px;">
+      <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
+        <div class="stat-title" style="color:#94a3b8; font-size:13px;">Faturamento Total</div>
+        <div class="stat-value" style="color:#10b981; font-size:22px; font-weight:bold;">${formatarMoeda(faturamentoTotal)}</div>
+      </div>
+      <div class="stat-card" style="background:#1e293b; padding:15px; border-radius:8px; color:white;">
+        <div class="stat-title" style="color:#94a3b8; font-size:13px;">Produto Mais Vendido</div>
+        <div class="stat-value" style="font-size:16px; font-weight:bold; margin-top:4px;">${produtoMaisVendido}</div>
+      </div>
+    </div>
+  `;
 }
+  
 /* ---------------- ADMIN: PRODUTOS (CRUD no banco de dados) ---------------- */
 
 function renderProdutosAdmin(){
@@ -1503,23 +1507,38 @@ async function renderVendasAdmin(){
 }
 
 async function confirmarPedido(id){
-  const pedido = pedidos.find(p => p.id == id);
-  if(!pedido) return;
+  try {
+    const pedido = pedidos.find(p => p.id == id);
+    if(!pedido) return;
 
-  // 1. Somar ao historico de faturamento e produtos mais vendidos
-  faturamentoHistorico += Number(pedido.total) || 0;
-  if(pedido.itens && Array.isArray(pedido.itens)){
-    for(const item of pedido.itens){
-      contagemProdutosHistorico[item.nome] = (contagemProdutosHistorico[item.nome] || 0) + (item.qtd || 1);
-      
-      // Baixa no estoque dos produtos
-      const produtoLocal = PRODUTOS.find(p => p.id == item.id);
-      if(produtoLocal){
-        const novoEstoque = Math.max(0, (produtoLocal.estoque || 0) - item.qtd);
-        await supabaseClient.from('products').update({ estoque: novoEstoque }).eq('id', item.id);
+    // Acumula no faturamento e produtos mais vendidos
+    window.faturamentoHistorico += Number(pedido.total) || 0;
+    
+    if(pedido.itens && Array.isArray(pedido.itens)){
+      for(const item of pedido.itens){
+        window.contagemProdutosHistorico[item.nome] = (window.contagemProdutosHistorico[item.nome] || 0) + (item.qtd || 1);
+        
+        // Baixa no estoque
+        const produtoLocal = PRODUTOS.find(p => p.id == item.id);
+        if(produtoLocal){
+          const novoEstoque = Math.max(0, (produtoLocal.estoque || 0) - item.qtd);
+          await supabaseClient.from('products').update({ estoque: novoEstoque }).eq('id', item.id);
+        }
       }
     }
+
+    // Exclui pedido pendente
+    const idParaExcluir = isNaN(id) ? id : Number(id);
+    await supabaseClient.from('orders').delete().eq('id', idParaExcluir);
+
+    mostrarToast("Compra confirmada e estoque atualizado! ✓");
+    await recarregarProdutos();
+    mudarAbaAdmin('vendas');
+  } catch(err) {
+    console.error("Erro ao confirmar:", err);
+    mostrarToast("Erro ao confirmar compra.");
   }
+}
 
   // 2. Apaga do banco para sumir dos pendentes
   const idParaExcluir = isNaN(id) ? id : Number(id);
