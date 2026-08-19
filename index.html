@@ -1162,34 +1162,36 @@ async function renderDashboardAdmin(){
     }
   }
 
-  // Conta produtos com estoque baixo (exemplo: menor ou igual a 5)
+  // Conta produtos com estoque baixo
   const produtosEstoqueBaixo = (PRODUTOS || []).filter(p => (p.estoque || 0) <= 5).length;
 
   return `
-    <div class="admin-note">
+    <div style="background:#f5efe6; border:1px solid #e2d9cd; padding:16px; border-radius:12px; font-size:13px; color:#6b655b; line-height:1.5; margin-bottom:20px;">
       📌 Estes números vêm direto do banco de dados online — são os mesmos para você em qualquer computador ou celular, e reúnem os pedidos de todos os clientes que compraram pelo site.
     </div>
     
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-title">PEDIDOS ENVIADOS P/ WHATSAPP</div>
-        <div class="stat-value">${(pedidos || []).length}</div>
+    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:16px;">
+      
+      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:100px; display:flex; flex-direction:column; justify-content:space-between;">
+        <div style="font-size:11px; font-weight:700; color:#8c8275; letter-spacing:0.5px; text-transform:uppercase;">PEDIDOS ENVIADOS P/ WHATSAPP</div>
+        <div style="font-size:28px; font-weight:700; color:#1b382b; font-family:serif; margin-top:8px;">${(pedidos || []).length}</div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-title">FATURAMENTO ESTIMADO</div>
-        <div class="stat-value">${formatarMoeda(faturamentoTotal)}</div>
+      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:100px; display:flex; flex-direction:column; justify-content:space-between;">
+        <div style="font-size:11px; font-weight:700; color:#8c8275; letter-spacing:0.5px; text-transform:uppercase;">FATURAMENTO ESTIMADO</div>
+        <div style="font-size:28px; font-weight:700; color:#1b382b; font-family:serif; margin-top:8px;">${formatarMoeda(faturamentoTotal)}</div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-title">PRODUTO MAIS VENDIDO</div>
-        <div class="stat-value" style="font-size: 20px;">${produtoMaisVendido}</div>
+      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:100px; display:flex; flex-direction:column; justify-content:space-between;">
+        <div style="font-size:11px; font-weight:700; color:#8c8275; letter-spacing:0.5px; text-transform:uppercase;">PRODUTO MAIS VENDIDO</div>
+        <div style="font-size:20px; font-weight:700; color:#1b382b; font-family:serif; margin-top:8px; line-height:1.2;">${produtoMaisVendido}</div>
       </div>
 
-      <div class="stat-card">
-        <div class="stat-title">PRODUTOS COM ESTOQUE BAIXO</div>
-        <div class="stat-value">${produtosEstoqueBaixo}</div>
+      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:100px; display:flex; flex-direction:column; justify-content:space-between;">
+        <div style="font-size:11px; font-weight:700; color:#8c8275; letter-spacing:0.5px; text-transform:uppercase;">PRODUTOS COM ESTOQUE BAIXO</div>
+        <div style="font-size:28px; font-weight:700; color:#1b382b; font-family:serif; margin-top:8px;">${produtosEstoqueBaixo}</div>
       </div>
+
     </div>
   `;
 }
