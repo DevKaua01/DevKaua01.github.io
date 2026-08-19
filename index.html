@@ -1478,74 +1478,78 @@ async function renderEstoqueAdmin(){
 }
 
 async function ajustarEstoque(id, delta){
-  const prod = PRODUTOS.find(p => p.id == id);
+  const prod = (PRODUTOS || []).find(p => p.id == id);
   if(!prod) return;
 
-  const novoEstoque = Math.max(0, (prod.estoque || 0) + delta);
-  
-  await supabaseClient
-    .from('products')
+  const novoEstoque = Math.max(0, Number(prod.estoque || 0) + delta);
+  prod.estoque = novoEstoque;
+
+  // Tenta atualizar na tabela 'produtos' primeiro
+  let { error } = await supabaseClient
+    .from('produtos')
     .update({ estoque: novoEstoque })
     .eq('id', id);
 
-  prod.estoque = novoEstoque;
+  if (error) {
+    // Se der erro, tenta na tabela 'products'
+    await supabaseClient
+      .from('products')
+      .update({ estoque: novoEstoque })
+      .eq('id', id);
+  }
+
   if (typeof mostrarToast === 'function') mostrarToast("Estoque atualizado! ✓");
-  
-  // Recarrega mantendo rigorosamente na aba de estoque
-  await mudarAbaAdmin('estoque');
+  await recarregarProdutos();
 }
+
 async function definirEstoque(id, valor){
   const novoEstoque = Math.max(0, parseInt(valor) || 0);
+  const prod = (PRODUTOS || []).find(p => p.id == id);
+  if(prod) prod.estoque = novoEstoque;
 
-  await supabaseClient
-    .from('products')
+  let { error } = await supabaseClient
+    .from('produtos')
     .update({ estoque: novoEstoque })
     .eq('id', id);
 
-  const prod = PRODUTOS.find(p => p.id == id);
-  if(prod) prod.estoque = novoEstoque;
+  if (error) {
+    await supabaseClient
+      .from('products')
+      .update({ estoque: novoEstoque })
+      .eq('id', id);
+  }
 
   if (typeof mostrarToast === 'function') mostrarToast("Estoque atualizado! ✓");
-  await mudarAbaAdmin('estoque');
+  await recarregarProdutos();
 }
 
 async function recarregarProdutos(){
   try {
-    // 1. Busca produtos direto no Supabase
-    let { data: prods, error } = await supabaseClient.from('products').select('*');
-
-    if (error || !prods || prods.length === 0) {
-      const res = await supabaseClient.from('produtos').select('*');
-      if (res.data) prods = res.data;
-    }
-
-    if (prods && prods.length > 0) {
+    // Busca direto da tabela original 'produtos'
+    const { data: prods, error: errProds } = await supabaseClient.from('produtos').select('*');
+    if (!errProds && prods) {
       PRODUTOS = prods;
+    } else {
+      // Fallback caso a tabela no Supabase seja 'products'
+      const { data: prodsAlt } = await supabaseClient.from('products').select('*');
+      if (prodsAlt) PRODUTOS = prodsAlt;
     }
 
-    // 2. Tenta renderizar os produtos na tela principal (evita travar se a função tiver outro nome)
-    if (typeof renderizarProdutos === 'function') {
-      renderizarProdutos();
-    } else if (typeof renderProdutos === 'function') {
-      renderProdutos();
-    } else if (typeof carregarProdutos === 'function') {
-      carregarProdutos();
-    } else if (typeof init === 'function') {
-      init();
-    }
-
-    // 3. Atualiza os pedidos sem quebrar a execução
+    // Busca os pedidos
     const { data: ords } = await supabaseClient.from('orders').select('*');
     if (ords) pedidos = ords;
 
-    // 4. Se o painel admin estiver aberto, atualiza a aba sem trocar de tela
-    const bodyAdmin = document.getElementById('adminBody');
-    if (bodyAdmin && typeof mudarAbaAdmin === 'function') {
+    // Atualiza a vitrine principal
+    if (typeof renderizarProdutos === 'function') renderizarProdutos();
+    if (typeof renderProdutos === 'function') renderProdutos();
+    if (typeof carregarProdutos === 'function') carregarProdutos();
+
+    // Atualiza o painel admin mantendo a aba atual
+    if (document.getElementById('adminBody') && typeof mudarAbaAdmin === 'function') {
       await mudarAbaAdmin(window.abaAtualAdmin || 'resumo');
     }
-
   } catch (err) {
-    console.error("Erro ao carregar produtos:", err);
+    console.error("Erro ao recarregar:", err);
   }
 }
   
