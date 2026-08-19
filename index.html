@@ -1511,13 +1511,35 @@ function excluirPedido(id){
     "Excluir pedido",
     "Tem certeza que deseja excluir este pedido pendente?",
     async () => {
-      const { error } = await supabaseClient.from('orders').delete().eq('id', id);
+      // Tenta excluir pelo 'id' (convertendo para número caso o banco use inteiro) ou pelo campo de data/hora
+      const idParaExcluir = isNaN(id) ? id : Number(id);
+
+      const { error } = await supabaseClient
+        .from('orders')
+        .delete()
+        .eq('id', idParaExcluir);
+
       if(error){
-        mostrarToast("Erro ao excluir pedido");
-        return;
+        console.error("Erro ao excluir do Supabase:", error);
+        // Tentativa de fallback caso o campo no banco tenha outro nome
+        const { error: erro2 } = await supabaseClient
+          .from('orders')
+          .delete()
+          .eq('criado_em', id);
+
+        if(erro2){
+          mostrarToast("Erro ao excluir pedido do banco");
+          console.error("Erro no fallback:", erro2);
+          return;
+        }
       }
+
       mostrarToast("Pedido excluído ✓");
-      mudarAbaAdmin('vendas');
+
+      // Atualiza a lista na tela imediatamente
+      await renderVendasAdmin().then(html => {
+        document.getElementById('adminBody').innerHTML = html;
+      });
     }
   );
 }
