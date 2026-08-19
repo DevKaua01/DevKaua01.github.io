@@ -989,20 +989,13 @@ async function checkoutWhatsApp(){
   try{
     // registra o pedido no banco de dados (visível a você em qualquer dispositivo)
     const { error: erroPedido } = await supabaseClient.from('orders').insert({
-      cliente: nomeParaMensagem,
-      itens: itensPedido,
-      total: total
-    });
-    if(erroPedido) throw erroPedido;
+  cliente: nomeParaMensagem,
+  itens: itensPedido,
+  total: total,
+  status: 'pendente'
+});
 
-    // baixa o estoque de cada item de forma segura no banco de dados
-    for(const item of itensPedido){
-      const { error: erroEstoque } = await supabaseClient.rpc('decrementar_estoque', {
-        p_id: item.id,
-        p_qtd: item.qtd
-      });
-      if(erroEstoque) console.error(erroEstoque);
-    }
+if(erroPedido) throw erroPedido;
   }catch(err){
     console.error(err);
     mostrarToast("Erro ao registrar o pedido, mas você ainda pode enviar pelo WhatsApp");
@@ -1477,13 +1470,19 @@ async function renderVendasAdmin(){
   pedidos = listaPedidos;
 
   const linhas = listaPedidos.map(pd => `
-    <tr>
-      <td>${formatarData(pd.criado_em)}</td>
-      <td>${pd.cliente || '—'}</td>
-      <td>${(pd.itens||[]).map(it => `${it.qtd}x ${it.nome}`).join('<br>')}</td>
-      <td><strong>${formatarMoeda(pd.total)}</strong></td>
-    </tr>
-  `).join('');
+  <tr>
+    <td>${formatarData(pd.criado_em)}</td>
+    <td>${pd.cliente || '—'}</td>
+    <td>${(pd.itens||[]).map(it => `${it.qtd}x ${it.nome}`).join('<br>')}</td>
+    <td><strong>${formatarMoeda(pd.total)}</strong></td>
+    <td>
+      ${pd.status === 'confirmado'
+        ? `<span class="pill ok">✓ Confirmado</span>`
+        : `<button class="btn-sm" onclick="confirmarPedido(${pd.id})">✓ Confirmar compra</button>`
+      }
+    </td>
+  </tr>
+`).join('');
 
   return `
     <div class="admin-note">
@@ -1494,13 +1493,39 @@ async function renderVendasAdmin(){
     </div>
     <div class="table-scroll">
       <table class="admin-table">
-        <thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th></tr></thead>
+        <thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th></tr></thead>
         <tbody>${linhas}</tbody>
       </table>
     </div>
   `;
 }
+  
+async function confirmarPedido(id){
+  if(!confirm("Confirmar esta compra?\n\nO estoque dos produtos será reduzido.")){
+    return;
+  }
 
+  const { data, error } = await supabaseClient.rpc('confirmar_pedido', {
+    p_order_id: id
+  });
+
+  if(error){
+    console.error(error);
+    mostrarToast("Erro ao confirmar o pedido.");
+    return;
+  }
+
+  if(data && data.sucesso === false){
+    mostrarToast(data.mensagem);
+    return;
+  }
+
+  mostrarToast("Compra confirmada ✓ Estoque atualizado.");
+
+  await recarregarProdutos();
+  mudarAbaAdmin('vendas');
+}
+  
 /* ---------------- INICIALIZAÇÃO ---------------- */
 
 async function iniciar(){
