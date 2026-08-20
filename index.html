@@ -713,7 +713,6 @@ let carrinho = {};
 let categoriaAtiva = "Todos";
 let termoBusca = "";
 let isAdmin = false;
-let abaAdminAtual = "dashboard";
 let editandoId = null;
 let arquivoImagemSelecionado = null; 
 let imagemPathAtual = null; 
@@ -1451,25 +1450,36 @@ function excluirProduto(id){
 /* ---------------- ADMIN: ESTOQUE ---------------- */
 
 async function renderEstoqueAdmin(){
-  const linhas = (PRODUTOS || []).map(p => `
-    <tr>
+  const linhas = (PRODUTOS || []).map(p => {
+    const estoqueAtual = p.estoque || 0;
+    const baixo = estoqueAtual > 0 && estoqueAtual <= ESTOQUE_BAIXO;
+    return `
+    <tr class="${baixo ? 'low-stock' : ''}">
       <td><strong>${p.nome}</strong></td>
-      <td>${p.estoque || 0} un</td>
+      <td>${estoqueAtual} un</td>
+      <td>
+        ${estoqueAtual <= 0
+          ? `<span class="pill danger">Esgotado</span>`
+          : baixo ? `<span class="pill warn">Estoque baixo</span>` : `<span class="pill ok">Disponível</span>`}
+      </td>
       <td>
         <div class="stock-adjust">
           <button class="icon-btn" onclick="ajustarEstoque('${p.id}', -1)">−</button>
-          <input type="number" min="0" value="${p.estoque || 0}" onchange="definirEstoque('${p.id}', this.value)">
+          <input type="number" min="0" value="${estoqueAtual}" onchange="definirEstoque('${p.id}', this.value)">
           <button class="icon-btn" onclick="ajustarEstoque('${p.id}', 1)">+</button>
         </div>
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   return `
-    <div class="admin-note">Gerenciamento rápido de estoque dos produtos.</div>
+    <div class="admin-note">
+      Produtos com estoque igual ou menor que ${ESTOQUE_BAIXO} unidades ficam destacados em laranja.
+    </div>
     <div class="table-scroll">
       <table class="admin-table">
-        <thead><tr><th>Produto</th><th>Qtd Atual</th><th>Ações</th></tr></thead>
+        <thead><tr><th>Produto</th><th>Qtd Atual</th><th>Situação</th><th>Ações</th></tr></thead>
         <tbody>${linhas}</tbody>
       </table>
     </div>
