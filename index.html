@@ -767,9 +767,7 @@ async function recarregarProdutos(){
   renderizarProdutos();
   atualizarCarrinhoUI();
   if(document.getElementById('adminOverlay').classList.contains('open')){
-    if(abaAdminAtual === 'produtos') mudarAbaAdmin('produtos');
-    if(abaAdminAtual === 'estoque') mudarAbaAdmin('estoque');
-    if(abaAdminAtual === 'dashboard') mudarAbaAdmin('dashboard');
+    mudarAbaAdmin(window.abaAtualAdmin || 'dashboard');
   }
 }
 
