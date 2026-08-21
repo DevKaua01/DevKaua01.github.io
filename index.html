@@ -915,7 +915,7 @@ async function carregarTabsDoBanco(){
   const { data, error } = await supabaseClient
     .from('tabs')
     .select('*')
-    .order('nome', { ascending: true });
+    .order('id', { ascending: true });
 
   if(error){
     console.error(error);
