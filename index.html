@@ -129,6 +129,53 @@
   .hero-tag .cap{font-weight:700; text-transform:uppercase; letter-spacing:0.05em; font-size:13px; margin-top:8px;}
   .hero-tag .sub{color:rgba(251,246,238,0.75); font-size:13.5px; margin-top:10px; line-height:1.55;}
 
+  /* ---------- MARCAS PRINCIPAIS & CATEGORIAS EM DESTAQUE ---------- */
+  .section-title-center{
+    text-align:center; font-weight:800; font-size:26px; letter-spacing:-0.02em;
+    color:var(--forest-dark); margin:8px 0 22px;
+  }
+  .brands-section, .categories-section{
+    max-width:1200px; margin:0 auto; padding:28px 24px 8px;
+  }
+  .brands-carousel{
+    display:flex; gap:16px; overflow-x:auto; padding-bottom:12px; scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;
+  }
+  .brand-card{
+    scroll-snap-align:start; flex:0 0 190px; background:#fff; border:1px solid rgba(46,74,58,0.12);
+    border-radius:16px; padding:22px 16px; text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:12px;
+  }
+  .brand-card img{width:64px; height:64px; object-fit:contain; border-radius:8px;}
+  .brand-card .brand-name{font-weight:700; font-size:14.5px; color:var(--forest-dark);}
+  .ver-produtos-btn{
+    border:1px solid rgba(46,74,58,0.25); background:transparent; color:var(--forest-dark);
+    padding:8px 16px; border-radius:999px; font-size:12.5px; font-weight:700; cursor:pointer;
+    font-family:inherit; transition:all .15s ease;
+  }
+  .brand-card .ver-produtos-btn:hover{background:var(--forest-dark); color:#fff;}
+
+  .categories-grid{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px;
+  }
+  .category-card{
+    position:relative; border-radius:18px; overflow:hidden; min-height:220px;
+    background-size:cover; background-position:center; display:flex; align-items:flex-end;
+    padding:22px; color:#fff;
+  }
+  .category-card::before{
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(0deg, rgba(0,0,0,0.68) 15%, rgba(0,0,0,0.05) 65%);
+  }
+  .category-card .cat-content{position:relative; z-index:1;}
+  .category-card h3{font-weight:800; font-size:20px; margin-bottom:6px;}
+  .category-card p{font-size:13px; opacity:0.92; margin-bottom:14px; max-width:230px; line-height:1.4;}
+  .category-card .ver-produtos-btn{
+    border:1px solid rgba(255,255,255,0.6); background:rgba(255,255,255,0.1); color:#fff;
+    backdrop-filter:blur(4px);
+  }
+  .category-card .ver-produtos-btn:hover{background:#fff; color:var(--forest-dark);}
+
   /* ---------- CATEGORIAS ---------- */
   .cat-bar{
     max-width:1200px; margin:0 auto; padding:0 24px 8px;
@@ -441,6 +488,11 @@
     .hero-tag .big-num{font-size:56px;}
     .hero-tag .big-num span{font-size:22px;}
 
+    .section-title-center{font-size:21px; margin:4px 0 16px;}
+    .brands-section, .categories-section{padding:20px 16px 4px;}
+    .brand-card{flex-basis:150px; padding:16px 10px;}
+    .categories-grid{grid-template-columns:1fr;}
+    .category-card{min-height:170px; padding:18px;}
     .cat-bar{padding:0 16px 8px; gap:8px;}
     .cat-chip{padding:8px 13px; font-size:12.5px;}
 
@@ -620,6 +672,16 @@
   </div>
 </section>
 
+<section class="brands-section" id="brandsSection" style="display:none;">
+  <h2 class="section-title-center">Marcas principais</h2>
+  <div class="brands-carousel" id="brandsCarousel"></div>
+</section>
+
+<section class="categories-section" id="categoriesSection" style="display:none;">
+  <h2 class="section-title-center">Categorias</h2>
+  <div class="categories-grid" id="categoriesGrid"></div>
+</section>
+
 <div class="cat-bar" id="catBar"></div>
 
 <main>
@@ -732,6 +794,42 @@
   </div>
 </div>
 
+<!-- Formulário de aba (marca/categoria) -->
+<div class="form-overlay" id="abaFormOverlay">
+  <div class="form-box">
+    <h4 id="abaFormTitulo">Nova aba</h4>
+    <input type="hidden" id="taId">
+    <div class="form-field">
+      <label>Nome da aba</label>
+      <input type="text" id="taNome" placeholder="Ex: Natura, Perfumes, Eletrônicos...">
+    </div>
+    <div class="form-field">
+      <label>Tipo</label>
+      <select id="taTipo">
+        <option value="categoria">Categoria (aparece nos cards de "Categorias")</option>
+        <option value="marca">Marca (aparece no carrossel "Marcas principais")</option>
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Descrição curta (opcional, usada nos cards de categoria)</label>
+      <textarea id="taDescricao" rows="2" placeholder="Ex: Cuidado e frescor para o dia a dia"></textarea>
+    </div>
+    <div class="form-field">
+      <label>Imagem (logo da marca ou foto de fundo da categoria)</label>
+      <div class="image-upload-box">
+        <img id="taImagemPreview" alt="Prévia da imagem" style="display:none;">
+        <div id="taImagemPlaceholder" class="image-upload-placeholder">Nenhuma imagem selecionada</div>
+        <input type="file" id="taImagemArquivo" accept="image/*" style="display:none" onchange="selecionarImagemAba(event)">
+        <button type="button" class="btn-sm secondary" onclick="document.getElementById('taImagemArquivo').click()">📷 Escolher imagem</button>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-sm" id="btnSalvarAba" onclick="salvarAbaForm()">Salvar aba</button>
+      <button class="btn-sm secondary" onclick="fecharFormAba()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Biblioteca do Supabase (banco de dados online) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -762,6 +860,9 @@ let isAdmin = false;
 let editandoId = null;
 let arquivoImagemSelecionado = null; 
 let imagemPathAtual = null; 
+let arquivoImagemAbaSelecionado = null;
+let imagemPathAtualAba = null;
+let editandoAbaId = null;
 let clienteNome = "";
 let confirmCallback = null;
 
@@ -889,7 +990,51 @@ function montarCategorias(){
   bar.innerHTML = todas.map(c =>
     `<button class="cat-chip ${c===categoriaAtiva?'active':''}" onclick="selecionarCategoria('${c.replace(/'/g,"\\'")}')">${c}</button>`
   ).join('');
+  montarSecoesDestaque();
 }
+
+function montarSecoesDestaque(){
+  const marcas = TABS.filter(t => t.tipo === 'marca');
+  const categorias = TABS.filter(t => t.tipo === 'categoria' || !t.tipo);
+
+  const brandsSection = document.getElementById('brandsSection');
+  const brandsCarousel = document.getElementById('brandsCarousel');
+  if(marcas.length === 0){
+    brandsSection.style.display = 'none';
+  } else {
+    brandsSection.style.display = 'block';
+    brandsCarousel.innerHTML = marcas.map(t => `
+      <div class="brand-card">
+        <img src="${t.imagem || IMAGEM_PLACEHOLDER}" alt="${t.nome}">
+        <div class="brand-name">${t.nome}</div>
+        <button class="ver-produtos-btn" onclick="verProdutosDaAba('${t.nome.replace(/'/g,"\\'")}')">Ver produtos</button>
+      </div>
+    `).join('');
+  }
+
+  const categoriesSection = document.getElementById('categoriesSection');
+  const categoriesGrid = document.getElementById('categoriesGrid');
+  if(categorias.length === 0){
+    categoriesSection.style.display = 'none';
+  } else {
+    categoriesSection.style.display = 'block';
+    categoriesGrid.innerHTML = categorias.map(t => `
+      <div class="category-card" style="background-image:url('${t.imagem || IMAGEM_PLACEHOLDER}')">
+        <div class="cat-content">
+          <h3>${t.nome}</h3>
+          ${t.descricao ? `<p>${t.descricao}</p>` : ''}
+          <button class="ver-produtos-btn" onclick="verProdutosDaAba('${t.nome.replace(/'/g,"\\'")}')">Ver produtos</button>
+        </div>
+      </div>
+    `).join('');
+  }
+}
+
+function verProdutosDaAba(nome){
+  selecionarCategoria(nome);
+  document.getElementById('produtos').scrollIntoView({behavior:'smooth'});
+}
+
 function selecionarCategoria(c){
   categoriaAtiva = c;
   montarCategorias();
@@ -1434,6 +1579,145 @@ function limparPreviewImagem(){
   placeholder.style.display = 'flex';
 }
 
+/* ---------------- FORMULÁRIO DE ABA (marca/categoria) ---------------- */
+
+function selecionarImagemAba(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')){
+    mostrarToast("Selecione um arquivo de imagem válido");
+    event.target.value = "";
+    return;
+  }
+  arquivoImagemAbaSelecionado = file;
+  const urlTemporaria = URL.createObjectURL(file);
+  mostrarPreviewImagemAba(urlTemporaria);
+}
+
+function mostrarPreviewImagemAba(url){
+  const img = document.getElementById('taImagemPreview');
+  const placeholder = document.getElementById('taImagemPlaceholder');
+  img.src = url;
+  img.style.display = 'block';
+  placeholder.style.display = 'none';
+}
+
+function limparPreviewImagemAba(){
+  const img = document.getElementById('taImagemPreview');
+  const placeholder = document.getElementById('taImagemPlaceholder');
+  img.src = '';
+  img.style.display = 'none';
+  placeholder.style.display = 'flex';
+}
+
+function abrirFormAba(id){
+  editandoAbaId = id;
+  arquivoImagemAbaSelecionado = null;
+  document.getElementById('taImagemArquivo').value = "";
+  const overlay = document.getElementById('abaFormOverlay');
+  const titulo = document.getElementById('abaFormTitulo');
+
+  if(id === null){
+    titulo.textContent = "Nova aba";
+    document.getElementById('taId').value = "";
+    document.getElementById('taNome').value = "";
+    document.getElementById('taTipo').value = "categoria";
+    document.getElementById('taDescricao').value = "";
+    imagemPathAtualAba = null;
+    limparPreviewImagemAba();
+  } else {
+    const t = TABS.find(x => x.id === id);
+    titulo.textContent = "Editar aba";
+    document.getElementById('taId').value = t.id;
+    document.getElementById('taNome').value = t.nome;
+    document.getElementById('taTipo').value = t.tipo || "categoria";
+    document.getElementById('taDescricao').value = t.descricao || "";
+    imagemPathAtualAba = t.imagem_path || null;
+    if(t.imagem){
+      mostrarPreviewImagemAba(t.imagem);
+    } else {
+      limparPreviewImagemAba();
+    }
+  }
+  overlay.classList.add('open');
+}
+
+function fecharFormAba(){
+  document.getElementById('abaFormOverlay').classList.remove('open');
+}
+
+async function salvarAbaForm(){
+  const nome = document.getElementById('taNome').value.trim();
+  const tipo = document.getElementById('taTipo').value;
+  const descricao = document.getElementById('taDescricao').value.trim();
+
+  if(!nome){
+    mostrarToast("Digite o nome da aba");
+    return;
+  }
+
+  const btn = document.getElementById('btnSalvarAba');
+  btn.disabled = true;
+  btn.textContent = "Salvando...";
+
+  const registro = { nome, tipo, descricao };
+
+  const pathAntigo = imagemPathAtualAba;
+
+  if(arquivoImagemAbaSelecionado){
+    try{
+      const extensao = (arquivoImagemAbaSelecionado.name.split('.').pop() || 'jpg').toLowerCase();
+      const nomeArquivo = `tabs/${Date.now()}-${Math.random().toString(36).slice(2,8)}.${extensao}`;
+
+      const { error: erroUpload } = await supabaseClient.storage
+        .from('product-images')
+        .upload(nomeArquivo, arquivoImagemAbaSelecionado, { cacheControl: '3600', upsert: false });
+      if(erroUpload) throw erroUpload;
+
+      const { data: urlData } = supabaseClient.storage.from('product-images').getPublicUrl(nomeArquivo);
+      registro.imagem = urlData.publicUrl;
+      registro.imagem_path = nomeArquivo;
+    }catch(err){
+      console.error(err);
+      btn.disabled = false;
+      btn.textContent = "Salvar aba";
+      mostrarToast("Erro ao enviar a imagem. Tente novamente.");
+      return;
+    }
+  }
+
+  let error;
+  if(editandoAbaId){
+    ({ error } = await supabaseClient.from('tabs').update(registro).eq('id', editandoAbaId));
+  } else {
+    ({ error } = await supabaseClient.from('tabs').insert(registro));
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Salvar aba";
+
+  if(error){
+    console.error(error);
+    if(error.code === '23505'){
+      mostrarToast("Já existe uma aba com esse nome");
+    } else {
+      mostrarToast("Erro ao salvar a aba. Verifique se você está logado.");
+    }
+    return;
+  }
+
+  // se a foto foi trocada, apaga a antiga do Storage só depois de salvar com sucesso
+  if(arquivoImagemAbaSelecionado && pathAntigo && pathAntigo !== registro.imagem_path){
+    const { error: erroRemocao } = await supabaseClient.storage.from('product-images').remove([pathAntigo]);
+    if(erroRemocao) console.error(erroRemocao);
+  }
+
+  fecharFormAba();
+  mostrarToast("Aba salva ✓");
+  await recarregarTabs();
+  mudarAbaAdmin('abas');
+}
+
 async function salvarProdutoForm(){
   const nome = document.getElementById('fNome').value.trim();
   const categoria = document.getElementById('fCategoria').value.trim() || "Geral";
@@ -1553,53 +1837,37 @@ function excluirProduto(id){
 /* ---------------- ADMIN: ABAS (etiquetas dos produtos) ---------------- */
 
 function renderAbasAdmin(){
-  const pills = TABS.map(t => `
-    <span style="display:inline-flex; align-items:center; gap:8px; margin:4px 8px 4px 0; padding:7px 8px 7px 14px; background:var(--cream-dim); border-radius:999px; font-size:13px; font-weight:600;">
-      ${t.nome}
-      <button class="icon-btn danger" style="width:22px; height:22px; font-size:11px;" title="Excluir aba" onclick="excluirAba(${t.id}, '${t.nome.replace(/'/g,"\\'")}')">✕</button>
-    </span>
+  const linhas = TABS.map(t => `
+    <tr>
+      <td><img src="${t.imagem || IMAGEM_PLACEHOLDER}" alt="" style="width:38px; height:38px; border-radius:6px; object-fit:cover;"></td>
+      <td><strong>${t.nome}</strong></td>
+      <td>${t.tipo === 'marca' ? '<span class="pill ok">Marca</span>' : '<span class="pill warn">Categoria</span>'}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" title="Editar" onclick="abrirFormAba(${t.id})">✏️</button>
+          <button class="icon-btn danger" title="Excluir" onclick="excluirAba(${t.id}, '${t.nome.replace(/'/g,"\\'")}')">🗑️</button>
+        </div>
+      </td>
+    </tr>
   `).join('');
 
   return `
     <div class="admin-note">
       Crie quantas abas quiser (ex: "Natura", "Perfumes", "Eletrônicos"). Um mesmo produto pode
       aparecer em várias abas ao mesmo tempo — é só marcar as abas desejadas na hora de cadastrar
-      ou editar o produto, na aba "Produtos". As abas aparecem como filtro para os clientes na loja.
+      ou editar o produto, na aba "Produtos". Abas do tipo "Marca" aparecem no carrossel
+      "Marcas principais" da home; abas do tipo "Categoria" aparecem nos cards da seção "Categorias".
     </div>
     <div class="toolbar">
-      <div style="display:flex; gap:8px; flex:1; max-width:380px;">
-        <input type="text" id="novaAbaInput" placeholder="Nome da nova aba" onkeydown="if(event.key==='Enter') criarAba();"
-          style="flex:1; padding:9px 12px; border-radius:8px; border:1px solid rgba(46,74,58,0.2); font-size:13.5px; font-family:inherit;">
-        <button class="btn-sm" onclick="criarAba()">+ Criar aba</button>
-      </div>
+      <button class="btn-sm" onclick="abrirFormAba(null)">+ Nova aba</button>
     </div>
-    <div>${pills || `<p style="color:var(--slate); font-size:13.5px;">Nenhuma aba criada ainda.</p>`}</div>
+    <div class="table-scroll">
+      <table class="admin-table">
+        <thead><tr><th></th><th>Nome</th><th>Tipo</th><th>Ações</th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="4" style="text-align:center; color:var(--slate); padding:24px;">Nenhuma aba criada ainda.</td></tr>`}</tbody>
+      </table>
+    </div>
   `;
-}
-
-async function criarAba(){
-  const input = document.getElementById('novaAbaInput');
-  const nome = input.value.trim();
-  if(!nome){
-    mostrarToast("Digite o nome da aba");
-    return;
-  }
-
-  const { error } = await supabaseClient.from('tabs').insert({ nome });
-  if(error){
-    if(error.code === '23505'){
-      mostrarToast("Já existe uma aba com esse nome");
-    } else {
-      console.error(error);
-      mostrarToast("Erro ao criar aba");
-    }
-    return;
-  }
-
-  input.value = "";
-  mostrarToast("Aba criada ✓");
-  await recarregarTabs();
-  mudarAbaAdmin('abas');
 }
 
 function excluirAba(id, nome){
@@ -1614,11 +1882,17 @@ function excluirAba(id, nome){
         await supabaseClient.from('products').update({ abas: novasAbas }).eq('id', p.id);
       }
 
+      const tab = TABS.find(t => t.id === id);
       const { error } = await supabaseClient.from('tabs').delete().eq('id', id);
       if(error){
         console.error(error);
         mostrarToast("Erro ao excluir aba");
         return;
+      }
+      // remove também a imagem do Storage, se houver
+      if(tab && tab.imagem_path){
+        const { error: erroStorage } = await supabaseClient.storage.from('product-images').remove([tab.imagem_path]);
+        if(erroStorage) console.error(erroStorage);
       }
 
       mostrarToast("Aba excluída");
@@ -1835,6 +2109,15 @@ async function iniciar(){
   await recarregarProdutos();
   ativarTempoReal();
 }
+iniciar();
+
+document.getElementById('wSobrenome').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter') confirmarEntrada();
+});
+</script>
+
+</body>
+</html>
 iniciar();
 
 document.getElementById('wSobrenome').addEventListener('keydown', (e) => {
