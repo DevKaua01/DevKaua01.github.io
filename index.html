@@ -2,25 +2,12 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ofertas do Dia — Promoções e Achadinhos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
-  html, body {
-  width: 100%;
-  max-width: 100vw;
-  overflow-x: hidden;
-  margin: 0;
-  padding: 0;
-}
-
-/* Garante que imagens e cards não estourem no mobile */
-img, .card, container {
-  max-width: 100%;
-  box-sizing: border-box;
-}
   :root{
     --forest:#111827;
     --forest-dark:#0B1220;
@@ -848,7 +835,7 @@ img, .card, container {
 
 <script>
 
-  
+
 const WHATSAPP_NUMERO = "5521980814264";
 const SUPABASE_URL = "https://emafhhovdrlzuqhrsvys.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVtYWZoaG92ZHJsenVxaHJzdnlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwNjIxOTEsImV4cCI6MjEwMjYzODE5MX0.I3O4YXxYaDfoG5fiEWqGPvg496wdaUvyxxgjJc9KOOA";
@@ -957,9 +944,6 @@ async function recarregarProdutos(){
 
 function ativarTempoReal(){
   if(!supabaseClient) return;
-  // Sempre que qualquer pessoa (inclusive você, no painel) alterar a tabela de
-  // produtos, todo mundo que estiver com o site aberto recebe a atualização
-  // automaticamente — sem precisar recarregar a página.
   supabaseClient
     .channel('produtos-tempo-real')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
@@ -967,8 +951,6 @@ function ativarTempoReal(){
     })
     .subscribe();
 
-  // O mesmo vale para as abas: se você criar/excluir uma aba, todo mundo
-  // com o site aberto vê a mudança na hora.
   supabaseClient
     .channel('abas-tempo-real')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tabs' }, () => {
@@ -1223,15 +1205,14 @@ async function checkoutWhatsApp(){
   mensagem += "\n\nAguardo confirmação de disponibilidade e forma de pagamento. Obrigada(o)!";
 
   try{
-    // registra o pedido no banco de dados (visível a você em qualquer dispositivo)
     const { error: erroPedido } = await supabaseClient.from('orders').insert({
-  cliente: nomeParaMensagem,
-  itens: itensPedido,
-  total: total,
-  status: 'pendente'
-});
+      cliente: nomeParaMensagem,
+      itens: itensPedido,
+      total: total,
+      status: 'pendente'
+    });
 
-if(erroPedido) throw erroPedido;
+    if(erroPedido) throw erroPedido;
   }catch(err){
     console.error(err);
     mostrarToast("Erro ao registrar o pedido, mas você ainda pode enviar pelo WhatsApp");
@@ -1332,8 +1313,6 @@ function fecharAdmin(){
   document.getElementById('adminOverlay').classList.remove('open');
 }
 
-// Se a pessoa já tiver feito login antes neste navegador, o Supabase mantém a
-// sessão salva — então não pedimos senha de novo a cada visita.
 async function verificarSessaoExistente(){
   if(!supabaseClient) return;
   const { data: { session } } = await supabaseClient.auth.getSession();
@@ -1380,7 +1359,6 @@ if (typeof contagemProdutosHistorico === 'undefined') var contagemProdutosHistor
 if (typeof historicoPedidosCount === 'undefined') var historicoPedidosCount = 0;
 
 async function renderDashboardAdmin(){
-  // 1. Busca os pedidos pendentes atualizados do Supabase
   const { data: listaPedidos } = await supabaseClient
     .from('orders')
     .select('*');
@@ -1389,14 +1367,11 @@ async function renderDashboardAdmin(){
     pedidos = listaPedidos;
   }
 
-  // 2. Calcula o total de pedidos (Pendentes + Confirmados no histórico)
   const totalPedidosEnviados = (pedidos || []).length + historicoPedidosCount;
 
-  // 3. Faturamento total
   const totalPendentes = (pedidos || []).reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
   const faturamentoTotal = faturamentoHistorico + totalPendentes;
 
-  // 4. Produto mais vendido
   const contagemGeral = { ...contagemProdutosHistorico };
   (pedidos || []).forEach(pd => {
     (pd.itens || []).forEach(it => {
@@ -1414,56 +1389,29 @@ async function renderDashboardAdmin(){
     }
   }
 
-  // 5. Estoque baixo
   const produtosEstoqueBaixo = (PRODUTOS || []).filter(p => (p.estoque || 0) <= 5).length;
 
   return `
-    <div style="background:#f5efe6; border:1px solid #e2d9cd; padding:16px; border-radius:12px; font-size:13px; color:#6b655b; line-height:1.5; margin-bottom:20px; font-family: system-ui, sans-serif;">
+    <div class="admin-note">
       📌 Estes números vêm direto do banco de dados online — são os mesmos para você em qualquer computador ou celular, e reúnem os pedidos de todos os clientes que compraram pelo site.
     </div>
-    
-    <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:16px;">
-      
-      <!-- Card: Pedidos -->
-      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:110px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-family: system-ui, sans-serif; font-size:11px; font-weight:700; color:#857C70; text-transform:uppercase; letter-spacing:0.5px;">
-          PEDIDOS ENVIADOS P/ WHATSAPP
-        </div>
-        <div style="font-family: Georgia, 'Playfair Display', serif; font-size:28px; font-weight:700; color:#22392E; margin-top:8px;">
-          ${totalPedidosEnviados}
-        </div>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Pedidos enviados p/ WhatsApp</div>
+        <div class="kpi-value">${totalPedidosEnviados}</div>
       </div>
-
-      <!-- Card: Faturamento -->
-      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:110px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-family: system-ui, sans-serif; font-size:11px; font-weight:700; color:#857C70; text-transform:uppercase; letter-spacing:0.5px;">
-          FATURAMENTO ESTIMADO
-        </div>
-        <div style="font-family: Georgia, 'Playfair Display', serif; font-size:28px; font-weight:700; color:#22392E; margin-top:8px;">
-          ${formatarMoeda(faturamentoTotal)}
-        </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Faturamento estimado</div>
+        <div class="kpi-value">${formatarMoeda(faturamentoTotal)}</div>
       </div>
-
-      <!-- Card: Produto Mais Vendido -->
-      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:110px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-family: system-ui, sans-serif; font-size:11px; font-weight:700; color:#857C70; text-transform:uppercase; letter-spacing:0.5px;">
-          PRODUTO MAIS VENDIDO
-        </div>
-        <div style="font-family: Georgia, 'Playfair Display', serif; font-size:18px; font-weight:700; color:#22392E; line-height:1.2; margin-top:8px;">
-          ${produtoMaisVendido}
-        </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Produto mais vendido</div>
+        <div class="kpi-value" style="font-size:16px;">${produtoMaisVendido}</div>
       </div>
-
-      <!-- Card: Estoque Baixo -->
-      <div style="background:#faf6f0; border:1px solid #eee8df; padding:18px; border-radius:14px; min-height:110px; display:flex; flex-direction:column; justify-content:space-between;">
-        <div style="font-family: system-ui, sans-serif; font-size:11px; font-weight:700; color:#857C70; text-transform:uppercase; letter-spacing:0.5px;">
-          PRODUTOS COM ESTOQUE BAIXO
-        </div>
-        <div style="font-family: Georgia, 'Playfair Display', serif; font-size:28px; font-weight:700; color:#22392E; margin-top:8px;">
-          ${produtosEstoqueBaixo}
-        </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Produtos com estoque baixo</div>
+        <div class="kpi-value">${produtosEstoqueBaixo}</div>
       </div>
-
     </div>
   `;
 }
@@ -1570,8 +1518,6 @@ function selecionarImagemProduto(event){
     return;
   }
   arquivoImagemSelecionado = file;
-  // gera uma prévia local (temporária, só no navegador) — a imagem em si só é
-  // enviada para o Supabase Storage quando o produto for salvo
   const urlTemporaria = URL.createObjectURL(file);
   mostrarPreviewImagem(urlTemporaria);
 }
@@ -1719,7 +1665,6 @@ async function salvarAbaForm(){
     return;
   }
 
-  // se a foto foi trocada, apaga a antiga do Storage só depois de salvar com sucesso
   if(arquivoImagemAbaSelecionado && pathAntigo && pathAntigo !== registro.imagem_path){
     const { error: erroRemocao } = await supabaseClient.storage.from('product-images').remove([pathAntigo]);
     if(erroRemocao) console.error(erroRemocao);
@@ -1759,12 +1704,10 @@ async function salvarProdutoForm(){
     abas: abasSelecionadas
   };
 
-  // guarda o caminho da imagem que estava salva antes (para excluir depois, se for trocada)
   const produtoAntesDaEdicao = editandoId ? PRODUTOS.find(x => x.id === editandoId) : null;
   const pathAntigo = produtoAntesDaEdicao ? produtoAntesDaEdicao.imagemPath : null;
   let novoPath = null;
 
-  // se uma foto nova foi escolhida, envia para o Supabase Storage antes de salvar o produto
   if(arquivoImagemSelecionado){
     try{
       const extensao = (arquivoImagemSelecionado.name.split('.').pop() || 'jpg').toLowerCase();
@@ -1787,12 +1730,9 @@ async function salvarProdutoForm(){
       return;
     }
   } else if(!editandoId){
-    // produto novo, sem foto escolhida: usa uma imagem padrão (placeholder)
     registro.imagem = IMAGEM_PLACEHOLDER;
     registro.imagem_path = null;
   }
-  // se estiver editando e nenhuma foto nova foi escolhida, o campo de imagem
-  // simplesmente não entra no "registro" — a imagem atual é mantida como está
 
   let error;
   if(editandoId){
@@ -1810,8 +1750,6 @@ async function salvarProdutoForm(){
     return;
   }
 
-  // só agora, com o produto já salvo com sucesso, remove a imagem antiga do Storage
-  // (se ela existia e foi realmente substituída por uma nova)
   if(pathAntigo && novoPath && pathAntigo !== novoPath){
     const { error: erroRemocao } = await supabaseClient.storage.from('product-images').remove([pathAntigo]);
     if(erroRemocao) console.error(erroRemocao);
@@ -1835,7 +1773,6 @@ function excluirProduto(id){
         mostrarToast("Erro ao excluir produto");
         return;
       }
-      // remove também a imagem do Storage, para não acumular arquivos órfãos
       if(produto && produto.imagemPath){
         const { error: erroStorage } = await supabaseClient.storage.from('product-images').remove([produto.imagemPath]);
         if(erroStorage) console.error(erroStorage);
@@ -1888,7 +1825,6 @@ function excluirAba(id, nome){
     "Excluir aba",
     `Tem certeza que deseja excluir a aba "${nome}"? Os produtos que estão nela deixam de aparecer nesse filtro, mas continuam existindo normalmente.`,
     async () => {
-      // remove essa aba de todos os produtos que a usam, pra não sobrar referência solta
       const afetados = (PRODUTOS||[]).filter(p => (p.abas||[]).includes(nome));
       for(const p of afetados){
         const novasAbas = (p.abas||[]).filter(a => a !== nome);
@@ -1902,7 +1838,6 @@ function excluirAba(id, nome){
         mostrarToast("Erro ao excluir aba");
         return;
       }
-      // remove também a imagem do Storage, se houver
       if(tab && tab.imagem_path){
         const { error: erroStorage } = await supabaseClient.storage.from('product-images').remove([tab.imagem_path]);
         if(erroStorage) console.error(erroStorage);
@@ -2056,7 +1991,7 @@ async function confirmarPedido(id){
   if(!pedido) return;
 
   faturamentoHistorico += Number(pedido.total) || 0;
-  historicoPedidosCount += 1; // Mantém a contagem quando o pedido for confirmado
+  historicoPedidosCount += 1;
 
   if(pedido.itens && Array.isArray(pedido.itens)){
     for(const item of pedido.itens){
@@ -2092,28 +2027,7 @@ function excluirPedido(id){
     }
   );
 }
-  
-  async function excluirPedidoPendente(id){
-  if(!confirm("Excluir este pedido?\n\nEssa ação não altera o estoque.")){
-    return;
-  }
 
-  const { error } = await supabaseClient
-    .from('orders')
-    .delete()
-    .eq('id', id)
-    .eq('status', 'pendente');
-
-  if(error){
-    console.error(error);
-    mostrarToast("Erro ao excluir o pedido.");
-    return;
-  }
-
-  mostrarToast("Pedido excluído ✓");
-  mudarAbaAdmin('vendas');
-}
-  
 /* ---------------- INICIALIZAÇÃO ---------------- */
 
 async function iniciar(){
@@ -2122,15 +2036,6 @@ async function iniciar(){
   await recarregarProdutos();
   ativarTempoReal();
 }
-iniciar();
-
-document.getElementById('wSobrenome').addEventListener('keydown', (e) => {
-  if(e.key === 'Enter') confirmarEntrada();
-});
-</script>
-
-</body>
-</html>
 iniciar();
 
 document.getElementById('wSobrenome').addEventListener('keydown', (e) => {
