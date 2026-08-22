@@ -811,6 +811,10 @@
       </select>
     </div>
     <div class="form-field">
+      <label>Ordem de exibição (número menor aparece primeiro)</label>
+      <input type="number" id="taOrdem" min="0" placeholder="0">
+    </div>
+    <div class="form-field">
       <label>Descrição curta (opcional, usada nos cards de categoria)</label>
       <textarea id="taDescricao" rows="2" placeholder="Ex: Cuidado e frescor para o dia a dia"></textarea>
     </div>
@@ -925,6 +929,7 @@ async function carregarTabsDoBanco(){
   const { data, error } = await supabaseClient
     .from('tabs')
     .select('*')
+    .order('ordem', { ascending: true })
     .order('nome', { ascending: true });
 
   if(error){
@@ -1603,6 +1608,9 @@ function abrirFormAba(id){
     document.getElementById('taNome').value = "";
     document.getElementById('taTipo').value = "categoria";
     document.getElementById('taDescricao').value = "";
+    // por padrão, a aba nova entra no final da lista
+    const maiorOrdem = TABS.reduce((max, t) => Math.max(max, t.ordem || 0), -1);
+    document.getElementById('taOrdem').value = maiorOrdem + 1;
     imagemPathAtualAba = null;
     limparPreviewImagemAba();
   } else {
@@ -1612,6 +1620,7 @@ function abrirFormAba(id){
     document.getElementById('taNome').value = t.nome;
     document.getElementById('taTipo').value = t.tipo || "categoria";
     document.getElementById('taDescricao').value = t.descricao || "";
+    document.getElementById('taOrdem').value = t.ordem || 0;
     imagemPathAtualAba = t.imagem_path || null;
     if(t.imagem){
       mostrarPreviewImagemAba(t.imagem);
@@ -1630,6 +1639,7 @@ async function salvarAbaForm(){
   const nome = document.getElementById('taNome').value.trim();
   const tipo = document.getElementById('taTipo').value;
   const descricao = document.getElementById('taDescricao').value.trim();
+  const ordem = parseInt(document.getElementById('taOrdem').value) || 0;
 
   if(!nome){
     mostrarToast("Digite o nome da aba");
@@ -1640,7 +1650,7 @@ async function salvarAbaForm(){
   btn.disabled = true;
   btn.textContent = "Salvando...";
 
-  const registro = { nome, tipo, descricao };
+  const registro = { nome, tipo, descricao, ordem };
 
   const pathAntigo = imagemPathAtualAba;
 
@@ -1808,11 +1818,17 @@ function excluirProduto(id){
 /* ---------------- ADMIN: ABAS (etiquetas dos produtos) ---------------- */
 
 function renderAbasAdmin(){
-  const linhas = TABS.map(t => `
+  const linhas = TABS.map((t, indice) => `
     <tr>
       <td><img src="${t.imagem || IMAGEM_PLACEHOLDER}" alt="" style="width:38px; height:38px; border-radius:6px; object-fit:cover;"></td>
       <td><strong>${escaparTexto(t.nome)}</strong></td>
       <td>${t.tipo === 'marca' ? '<span class="pill ok">Marca</span>' : '<span class="pill warn">Categoria</span>'}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" title="Mover para cima" ${indice===0 ? 'disabled style="opacity:0.3;"' : ''} onclick="moverAba(${t.id}, -1)">▲</button>
+          <button class="icon-btn" title="Mover para baixo" ${indice===TABS.length-1 ? 'disabled style="opacity:0.3;"' : ''} onclick="moverAba(${t.id}, 1)">▼</button>
+        </div>
+      </td>
       <td>
         <div class="row-actions">
           <button class="icon-btn" title="Editar" onclick="abrirFormAba(${t.id})">✏️</button>
@@ -1828,17 +1844,43 @@ function renderAbasAdmin(){
       aparecer em várias abas ao mesmo tempo — é só marcar as abas desejadas na hora de cadastrar
       ou editar o produto, na aba "Produtos". Abas do tipo "Marca" aparecem no carrossel
       "Marcas principais" da home; abas do tipo "Categoria" aparecem nos cards da seção "Categorias".
+      Use as setas ▲▼ para mudar a ordem de exibição.
     </div>
     <div class="toolbar">
       <button class="btn-sm" onclick="abrirFormAba(null)">+ Nova aba</button>
     </div>
     <div class="table-scroll">
       <table class="admin-table">
-        <thead><tr><th></th><th>Nome</th><th>Tipo</th><th>Ações</th></tr></thead>
-        <tbody>${linhas || `<tr><td colspan="4" style="text-align:center; color:var(--slate); padding:24px;">Nenhuma aba criada ainda.</td></tr>`}</tbody>
+        <thead><tr><th></th><th>Nome</th><th>Tipo</th><th>Ordem</th><th>Ações</th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="5" style="text-align:center; color:var(--slate); padding:24px;">Nenhuma aba criada ainda.</td></tr>`}</tbody>
       </table>
     </div>
   `;
+}
+
+async function moverAba(id, direcao){
+  const indiceAtual = TABS.findIndex(t => t.id === id);
+  const indiceVizinho = indiceAtual + direcao;
+  if(indiceVizinho < 0 || indiceVizinho >= TABS.length) return;
+
+  const atual = TABS[indiceAtual];
+  const vizinho = TABS[indiceVizinho];
+
+  // troca o valor de ordem entre os dois itens
+  const ordemAtual = atual.ordem || 0;
+  const ordemVizinho = vizinho.ordem || 0;
+
+  const { error: erro1 } = await supabaseClient.from('tabs').update({ ordem: ordemVizinho }).eq('id', atual.id);
+  const { error: erro2 } = await supabaseClient.from('tabs').update({ ordem: ordemAtual }).eq('id', vizinho.id);
+
+  if(erro1 || erro2){
+    console.error(erro1 || erro2);
+    mostrarToast("Erro ao reordenar");
+    return;
+  }
+
+  await recarregarTabs();
+  mudarAbaAdmin('abas');
 }
 
 function excluirAba(id, nome){
