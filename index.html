@@ -866,6 +866,16 @@ let editandoAbaId = null;
 let clienteNome = "";
 let confirmCallback = null;
 
+// Protege contra código malicioso escondido em nomes/descrições de produtos ou
+// abas — transforma qualquer coisa que pareça HTML/script em texto puro antes
+// de mostrar na tela, para que nunca seja executado no navegador de um cliente.
+function escaparTexto(texto){
+  if(texto === null || texto === undefined) return '';
+  const div = document.createElement('div');
+  div.textContent = String(texto);
+  return div.innerHTML;
+}
+
 function formatarMoeda(v){
   return (v||0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'});
 }
@@ -1000,8 +1010,8 @@ function montarSecoesDestaque(){
     brandsSection.style.display = 'block';
     brandsCarousel.innerHTML = marcas.map(t => `
       <div class="brand-card">
-        <img src="${t.imagem || IMAGEM_PLACEHOLDER}" alt="${t.nome}">
-        <div class="brand-name">${t.nome}</div>
+        <img src="${t.imagem || IMAGEM_PLACEHOLDER}" alt="${escaparTexto(t.nome)}">
+        <div class="brand-name">${escaparTexto(t.nome)}</div>
         <button class="ver-produtos-btn" onclick="verProdutosDaAba('${t.nome.replace(/'/g,"\\'")}')">Ver produtos</button>
       </div>
     `).join('');
@@ -1016,8 +1026,8 @@ function montarSecoesDestaque(){
     categoriesGrid.innerHTML = categorias.map(t => `
       <div class="category-card" style="background-image:url('${t.imagem || IMAGEM_PLACEHOLDER}')">
         <div class="cat-content">
-          <h3>${t.nome}</h3>
-          ${t.descricao ? `<p>${t.descricao}</p>` : ''}
+          <h3>${escaparTexto(t.nome)}</h3>
+          ${t.descricao ? `<p>${escaparTexto(t.descricao)}</p>` : ''}
           <button class="ver-produtos-btn" onclick="verProdutosDaAba('${t.nome.replace(/'/g,"\\'")}')">Ver produtos</button>
         </div>
       </div>
@@ -1065,10 +1075,10 @@ function renderizarProdutos(){
       <div class="card">
         ${desconto>0 ? `<span class="badge-off">-${desconto}%</span>` : ''}
         ${semEstoque ? `<span class="badge-sold">Esgotado</span>` : ''}
-        <img class="card-img" src="${p.imagem || IMAGEM_PLACEHOLDER}" alt="${p.nome}" loading="lazy">
+        <img class="card-img" src="${p.imagem || IMAGEM_PLACEHOLDER}" alt="${escaparTexto(p.nome)}" loading="lazy">
         <div class="card-body">
-          <div class="card-cat">${p.categoria}</div>
-          <div class="card-name">${p.nome}</div>
+          <div class="card-cat">${escaparTexto(p.categoria)}</div>
+          <div class="card-name">${escaparTexto(p.nome)}</div>
           <div class="price-row">
             <span class="price-old">${formatarMoeda(p.precoOriginal)}</span>
             <span class="price-new">${formatarMoeda(p.precoPromo)}</span>
@@ -1139,9 +1149,9 @@ function atualizarCarrinhoUI(){
       totalValor += qtd * p.precoPromo;
       return `
         <div class="cart-item">
-          <img src="${p.imagem || IMAGEM_PLACEHOLDER}" alt="${p.nome}">
+          <img src="${p.imagem || IMAGEM_PLACEHOLDER}" alt="${escaparTexto(p.nome)}">
           <div class="ci-info">
-            <div class="ci-name">${p.nome}</div>
+            <div class="ci-name">${escaparTexto(p.nome)}</div>
             <div class="ci-price">${formatarMoeda(p.precoPromo)}</div>
             <div class="qty-row">
               <button class="qty-btn" onclick="alterarQuantidade(${p.id}, -1)">−</button>
@@ -1433,7 +1443,7 @@ function renderProdutosAdmin(){
   const linhas = PRODUTOS.map(p => `
     <tr>
       <td><img src="${p.imagem || IMAGEM_PLACEHOLDER}" alt=""></td>
-      <td>${p.nome}<br><span style="color:var(--slate); font-size:11.5px;">${p.categoria}${(p.abas && p.abas.length) ? ' · ' + p.abas.join(', ') : ''}</span></td>
+      <td>${escaparTexto(p.nome)}<br><span style="color:var(--slate); font-size:11.5px;">${escaparTexto(p.categoria)}${(p.abas && p.abas.length) ? ' · ' + escaparTexto(p.abas.join(', ')) : ''}</span></td>
       <td>${formatarMoeda(p.precoOriginal)}</td>
       <td>${formatarMoeda(p.precoPromo)}</td>
       <td>${p.estoque}</td>
@@ -1515,7 +1525,7 @@ function popularChecklistAbas(abasSelecionadas){
   container.innerHTML = TABS.map(t => `
     <label>
       <input type="checkbox" value="${t.nome.replace(/"/g,'&quot;')}" ${abasSelecionadas.includes(t.nome) ? 'checked' : ''}>
-      ${t.nome}
+      ${escaparTexto(t.nome)}
     </label>
   `).join('');
 }
@@ -1801,7 +1811,7 @@ function renderAbasAdmin(){
   const linhas = TABS.map(t => `
     <tr>
       <td><img src="${t.imagem || IMAGEM_PLACEHOLDER}" alt="" style="width:38px; height:38px; border-radius:6px; object-fit:cover;"></td>
-      <td><strong>${t.nome}</strong></td>
+      <td><strong>${escaparTexto(t.nome)}</strong></td>
       <td>${t.tipo === 'marca' ? '<span class="pill ok">Marca</span>' : '<span class="pill warn">Categoria</span>'}</td>
       <td>
         <div class="row-actions">
@@ -1870,7 +1880,7 @@ async function renderEstoqueAdmin(){
     const baixo = estoqueAtual > 0 && estoqueAtual <= ESTOQUE_BAIXO;
     return `
     <tr class="${baixo ? 'low-stock' : ''}">
-      <td><strong>${p.nome}</strong></td>
+      <td><strong>${escaparTexto(p.nome)}</strong></td>
       <td>${estoqueAtual} un</td>
       <td>
         ${estoqueAtual <= 0
@@ -2056,4 +2066,3 @@ document.getElementById('wSobrenome').addEventListener('keydown', (e) => {
 
 </body>
 </html>
-
