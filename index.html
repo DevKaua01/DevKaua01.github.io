@@ -915,7 +915,7 @@ async function carregarTabsDoBanco(){
   const { data, error } = await supabaseClient
     .from('tabs')
     .select('*')
-    .order('id', { ascending: true });
+    .order('nome', { ascending: true });
 
   if(error){
     console.error(error);
@@ -1305,7 +1305,18 @@ async function sairAdmin(){
 }
 
 async function abrirAdmin(){
-  if(!isAdmin) return;
+  // Nunca confia só na variável local — sempre confirma com o Supabase que
+  // existe mesmo uma sessão válida antes de abrir o painel. Isso impede que
+  // alguém force a abertura do painel só editando a variável pelo console.
+  if(!supabaseClient) return;
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  if(!session){
+    isAdmin = false;
+    mostrarToast("Sua sessão expirou. Faça login novamente.");
+    abrirLoginAdmin();
+    return;
+  }
+  isAdmin = true;
   document.getElementById('adminOverlay').classList.add('open');
   mudarAbaAdmin('dashboard');
 }
@@ -2045,3 +2056,4 @@ document.getElementById('wSobrenome').addEventListener('keydown', (e) => {
 
 </body>
 </html>
+
