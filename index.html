@@ -331,6 +331,39 @@
   }
   .toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
 
+  /* ---------- TELA DE ABERTURA (splash) ---------- */
+  .splash-screen{
+    position:fixed; inset:0; z-index:300;
+    background:linear-gradient(135deg,#111827,#273244);
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px;
+    animation: splashSai 0.35s ease 0.85s forwards;
+  }
+  .splash-logo{
+    width:84px; height:84px; border-radius:50%;
+    background:linear-gradient(135deg,#ff5a1f,#ff8a3d);
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:800; font-size:38px; font-family:'Inter',sans-serif;
+    box-shadow:0 20px 50px rgba(255,90,31,0.35);
+    animation: splashEntra 0.5s cubic-bezier(.34,1.56,.64,1) both;
+  }
+  .splash-text{
+    color:#fff; font-weight:800; font-size:20px; letter-spacing:-0.02em;
+    opacity:0; animation: splashTexto 0.4s ease 0.25s forwards;
+  }
+  @keyframes splashEntra{
+    0%{ transform:scale(0.3); opacity:0; }
+    100%{ transform:scale(1); opacity:1; }
+  }
+  @keyframes splashTexto{
+    0%{ opacity:0; transform:translateY(8px); }
+    100%{ opacity:1; transform:translateY(0); }
+  }
+  @keyframes splashSai{
+    0%{ opacity:1; visibility:visible; }
+    99%{ opacity:0; visibility:visible; }
+    100%{ opacity:0; visibility:hidden; pointer-events:none; }
+  }
+
   /* ---------- MODAIS GENÉRICOS (boas-vindas, login admin, confirmação) ---------- */
   .modal-overlay{
     position:fixed; inset:0; background:rgba(33,54,41,0.72); z-index:150;
@@ -602,6 +635,12 @@
 
 <div class="config-banner" id="configBanner">
   ⚠️ O site ainda não está conectado ao banco de dados. Veja o arquivo INSTRUCOES-BANCO-DE-DADOS.md para configurar.
+</div>
+
+<!-- ================= TELA DE ABERTURA (rápida, só uma animação de entrada) ================= -->
+<div class="splash-screen" id="splashScreen">
+  <div class="splash-logo">D</div>
+  <div class="splash-text">Ofertas do Dia</div>
 </div>
 
 <!-- ================= PORTÃO DE ENTRADA: NOME DO CLIENTE ================= -->
@@ -1586,7 +1625,45 @@ function popularChecklistAbas(abasSelecionadas){
   `).join('');
 }
 
-function selecionarImagemProduto(event){
+// Reduz o tamanho do arquivo de imagem antes de enviar, sem perda visível de
+// qualidade na tela: encolhe pra no máximo 1600px no lado maior (fotos de
+// celular costumam vir com 3000-4000px, muito além do que aparece num card
+// de produto) e comprime em JPEG de alta qualidade (85%).
+function comprimirImagem(file, maxDimensao = 1600, qualidade = 0.85){
+  return new Promise((resolve) => {
+    const img = new Image();
+    const urlOriginal = URL.createObjectURL(file);
+
+    img.onload = () => {
+      let { width, height } = img;
+      if(width > maxDimensao || height > maxDimensao){
+        if(width > height){
+          height = Math.round(height * (maxDimensao / width));
+          width = maxDimensao;
+        } else {
+          width = Math.round(width * (maxDimensao / height));
+          height = maxDimensao;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      URL.revokeObjectURL(urlOriginal);
+
+      canvas.toBlob((blob) => {
+        if(!blob){ resolve(file); return; } // se algo falhar, usa o arquivo original
+        const nomeBase = file.name.replace(/\.[^.]+$/, '') || 'imagem';
+        resolve(new File([blob], nomeBase + '.jpg', { type: 'image/jpeg' }));
+      }, 'image/jpeg', qualidade);
+    };
+
+    img.onerror = () => resolve(file); // se der erro, usa o arquivo original
+    img.src = urlOriginal;
+  });
+}
+
+async function selecionarImagemProduto(event){
   const file = event.target.files[0];
   if(!file) return;
   if(!file.type.startsWith('image/')){
@@ -1594,8 +1671,9 @@ function selecionarImagemProduto(event){
     event.target.value = "";
     return;
   }
-  arquivoImagemSelecionado = file;
-  const urlTemporaria = URL.createObjectURL(file);
+  const comprimido = await comprimirImagem(file);
+  arquivoImagemSelecionado = comprimido;
+  const urlTemporaria = URL.createObjectURL(comprimido);
   mostrarPreviewImagem(urlTemporaria);
 }
 
@@ -1617,7 +1695,7 @@ function limparPreviewImagem(){
 
 /* ---------------- FORMULÁRIO DE ABA (marca/categoria) ---------------- */
 
-function selecionarImagemAba(event){
+async function selecionarImagemAba(event){
   const file = event.target.files[0];
   if(!file) return;
   if(!file.type.startsWith('image/')){
@@ -1625,8 +1703,9 @@ function selecionarImagemAba(event){
     event.target.value = "";
     return;
   }
-  arquivoImagemAbaSelecionado = file;
-  const urlTemporaria = URL.createObjectURL(file);
+  const comprimido = await comprimirImagem(file);
+  arquivoImagemAbaSelecionado = comprimido;
+  const urlTemporaria = URL.createObjectURL(comprimido);
   mostrarPreviewImagemAba(urlTemporaria);
 }
 
@@ -2283,6 +2362,12 @@ async function iniciar(){
   ativarTempoReal();
 }
 iniciar();
+
+// tira a tela de abertura do DOM depois que a animação termina
+setTimeout(() => {
+  const splash = document.getElementById('splashScreen');
+  if(splash) splash.style.display = 'none';
+}, 1300);
 
 document.getElementById('wSobrenome').addEventListener('keydown', (e) => {
   if(e.key === 'Enter') confirmarEntrada();
