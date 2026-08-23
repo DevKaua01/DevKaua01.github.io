@@ -4,6 +4,26 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ofertas do Dia — Promoções e Achadinhos</title>
+
+<!-- Favicon -->
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="favicon-16x16.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<meta name="theme-color" content="#FF5A1F">
+
+<!-- Card bonito ao compartilhar o link (WhatsApp, Instagram, etc.) -->
+<!-- Se você trocar de domínio no futuro, atualize as duas linhas "https://promosdiogo.vercel.app/" abaixo -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Ofertas do Dia — Promoções e Achadinhos">
+<meta property="og:description" content="Encontre produtos com preços especiais, monte seu carrinho e envie seu pedido pelo WhatsApp. Simples, rápido e sem complicação.">
+<meta property="og:image" content="https://promosdiogo.vercel.app/og-image.png">
+<meta property="og:url" content="https://promosdiogo.vercel.app/">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Ofertas do Dia — Promoções e Achadinhos">
+<meta name="twitter:description" content="Encontre produtos com preços especiais, monte seu carrinho e envie seu pedido pelo WhatsApp.">
+<meta name="twitter:image" content="https://promosdiogo.vercel.app/og-image.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -735,6 +755,7 @@
       <button class="admin-tab" data-tab="abas" onclick="mudarAbaAdmin('abas')">Abas</button>
       <button class="admin-tab" data-tab="estoque" onclick="mudarAbaAdmin('estoque')">Estoque</button>
       <button class="admin-tab" data-tab="vendas" onclick="mudarAbaAdmin('vendas')">Vendas / Whatsapp</button>
+      <button class="admin-tab" data-tab="analytics" onclick="mudarAbaAdmin('analytics')">Analytics</button>
     </div>
     <div class="admin-body" id="adminBody"></div>
   </div>
@@ -957,6 +978,31 @@ async function recarregarProdutos(){
   }
 }
 
+/* ---------------- ANALYTICS ---------------- */
+
+// Registra um evento de uso do site (visita, clique em adicionar ao carrinho,
+// clique em finalizar pelo WhatsApp). Nunca trava nem mostra erro pro
+// visitante — se falhar, só ignora silenciosamente.
+async function registrarEvento(tipo, produtoId){
+  if(!supabaseClient) return;
+  try{
+    await supabaseClient.from('eventos_analytics').insert({
+      tipo,
+      produto_id: produtoId || null
+    });
+  }catch(err){
+    console.error('Erro ao registrar evento de analytics:', err);
+  }
+}
+
+function registrarVisitaUnica(){
+  // conta 1 visita por sessão do navegador, mesmo se a pessoa navegar
+  // bastante dentro do site — evita inflar o número artificialmente
+  if(sessionStorage.getItem('visita_registrada')) return;
+  sessionStorage.setItem('visita_registrada', '1');
+  registrarEvento('visita');
+}
+
 function ativarTempoReal(){
   if(!supabaseClient) return;
   supabaseClient
@@ -989,6 +1035,7 @@ function confirmarEntrada(){
   clienteNome = nome + " " + sobrenome;
   document.getElementById('welcomeOverlay').classList.remove('open');
   document.body.classList.remove('locked');
+  registrarVisitaUnica();
 }
 
 /* ---------------- LOJA ---------------- */
@@ -1109,6 +1156,7 @@ function adicionarAoCarrinho(id){
   carrinho[id] = qtdNoCarrinho + 1;
   atualizarCarrinhoUI();
   mostrarToast("Produto adicionado ao carrinho ✓");
+  registrarEvento('adicionar_carrinho', id);
   const btn = document.getElementById(`btn-${id}`);
   if(btn){
     btn.classList.add('added');
@@ -1199,6 +1247,7 @@ async function checkoutWhatsApp(){
   const checkoutBtn = document.getElementById('checkoutBtn');
   checkoutBtn.disabled = true;
   checkoutBtn.textContent = "Enviando pedido...";
+  registrarEvento('finalizar_whatsapp');
 
   const nomeParaMensagem = clienteNome || "Cliente";
   let mensagem = `Olá! Me chamo ${nomeParaMensagem} e quero fazer o seguinte pedido:\n\n`;
@@ -1372,6 +1421,8 @@ async function mudarAbaAdmin(aba){
       body.innerHTML = renderAbasAdmin();
     } else if(window.abaAtualAdmin === 'vendas') {
       body.innerHTML = await renderVendasAdmin();
+    } else if(window.abaAtualAdmin === 'analytics') {
+      body.innerHTML = await renderAnalyticsAdmin();
     }
   } catch(err) {
     console.error("Erro ao alternar aba:", err);
@@ -2044,6 +2095,138 @@ async function renderVendasAdmin(){
       <table class="admin-table">
         <thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th></tr></thead>
         <tbody>${linhas}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+/* ---------------- ADMIN: ANALYTICS ---------------- */
+
+async function renderAnalyticsAdmin(){
+  const { data: eventos, error } = await supabaseClient
+    .from('eventos_analytics')
+    .select('*')
+    .order('criado_em', { ascending: false });
+
+  if(error){
+    console.error(error);
+    return `
+      <div class="admin-note">Não foi possível carregar os dados de analytics.</div>
+    `;
+  }
+
+  const lista = eventos || [];
+  const agora = new Date();
+  const hojeStr = agora.toDateString();
+  const seteDiasAtras = new Date(agora.getTime() - 7*24*60*60*1000);
+
+  const visitas = lista.filter(e => e.tipo === 'visita');
+  const carrinhos = lista.filter(e => e.tipo === 'adicionar_carrinho');
+  const checkouts = lista.filter(e => e.tipo === 'finalizar_whatsapp');
+
+  const visitasHoje = visitas.filter(e => new Date(e.criado_em).toDateString() === hojeStr).length;
+  const visitas7dias = visitas.filter(e => new Date(e.criado_em) >= seteDiasAtras).length;
+  const totalPedidosConfirmados = historicoPedidosCount + (pedidos ? pedidos.length : 0);
+
+  const taxaCarrinho = visitas.length > 0 ? Math.round((carrinhos.length / visitas.length) * 100) : 0;
+  const taxaCheckout = carrinhos.length > 0 ? Math.round((checkouts.length / carrinhos.length) * 100) : 0;
+
+  // monta os últimos 7 dias (incluindo hoje) pra desenhar o gráfico de barras
+  const dias = [];
+  for(let i = 6; i >= 0; i--){
+    const d = new Date(agora.getTime() - i*24*60*60*1000);
+    dias.push(d);
+  }
+  const contagemPorDia = dias.map(d => {
+    const strDia = d.toDateString();
+    return visitas.filter(e => new Date(e.criado_em).toDateString() === strDia).length;
+  });
+  const maxDia = Math.max(1, ...contagemPorDia);
+  const nomesDias = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+  const grafico = dias.map((d, i) => {
+    const altura = Math.round((contagemPorDia[i] / maxDia) * 90) + 6;
+    return `
+      <div style="display:flex; flex-direction:column; align-items:center; gap:6px; flex:1;">
+        <div style="font-size:11px; color:var(--slate); font-weight:700;">${contagemPorDia[i]}</div>
+        <div style="width:100%; max-width:34px; height:${altura}px; background:linear-gradient(180deg,#ff5a1f,#ff8a3d); border-radius:6px 6px 2px 2px;"></div>
+        <div style="font-size:11px; color:var(--slate);">${nomesDias[d.getDay()]}</div>
+      </div>
+    `;
+  }).join('');
+
+  // produtos mais adicionados ao carrinho
+  const contagemProdutos = {};
+  carrinhos.forEach(e => {
+    if(!e.produto_id) return;
+    contagemProdutos[e.produto_id] = (contagemProdutos[e.produto_id] || 0) + 1;
+  });
+  const rankingProdutos = Object.entries(contagemProdutos)
+    .sort((a,b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([produtoId, qtd]) => {
+      const prod = (PRODUTOS||[]).find(p => p.id == produtoId);
+      return { nome: prod ? prod.nome : 'Produto removido', qtd };
+    });
+
+  const linhasRanking = rankingProdutos.map(r => `
+    <tr><td>${escaparTexto(r.nome)}</td><td>${r.qtd}x adicionado ao carrinho</td></tr>
+  `).join('');
+
+  return `
+    <div class="admin-note">
+      📊 Estes números contam visitas ao site (uma por sessão de navegador), cliques em
+      "Adicionar ao carrinho" e cliques em "Finalizar pelo WhatsApp" — desde que o site foi publicado.
+    </div>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Visitas hoje</div>
+        <div class="kpi-value">${visitasHoje}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Visitas nos últimos 7 dias</div>
+        <div class="kpi-value">${visitas7dias}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Visitas totais</div>
+        <div class="kpi-value">${visitas.length}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Pedidos confirmados (total)</div>
+        <div class="kpi-value">${totalPedidosConfirmados}</div>
+      </div>
+    </div>
+
+    <h4 style="font-size:14px; color:var(--forest-dark); margin-bottom:10px;">Visitas nos últimos 7 dias</h4>
+    <div style="display:flex; align-items:flex-end; gap:8px; background:var(--cream-dim); border-radius:12px; padding:16px; margin-bottom:24px; height:150px;">
+      ${grafico}
+    </div>
+
+    <h4 style="font-size:14px; color:var(--forest-dark); margin-bottom:10px;">Funil de conversão</h4>
+    <div class="kpi-grid" style="margin-bottom:24px;">
+      <div class="kpi-card">
+        <div class="kpi-label">Visitantes → carrinho</div>
+        <div class="kpi-value">${taxaCarrinho}%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Carrinho → WhatsApp</div>
+        <div class="kpi-value">${taxaCheckout}%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Cliques em "Adicionar ao carrinho"</div>
+        <div class="kpi-value" style="font-size:22px;">${carrinhos.length}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Cliques em "Finalizar pelo WhatsApp"</div>
+        <div class="kpi-value" style="font-size:22px;">${checkouts.length}</div>
+      </div>
+    </div>
+
+    <h4 style="font-size:14px; color:var(--forest-dark); margin-bottom:10px;">Produtos mais adicionados ao carrinho</h4>
+    <div class="table-scroll">
+      <table class="admin-table">
+        <thead><tr><th>Produto</th><th>Interesse</th></tr></thead>
+        <tbody>${linhasRanking || `<tr><td colspan="2" style="text-align:center; color:var(--slate); padding:20px;">Ainda sem dados suficientes.</td></tr>`}</tbody>
       </table>
     </div>
   `;
