@@ -336,7 +336,10 @@
     position:fixed; inset:0; z-index:300;
     background:linear-gradient(135deg,#111827,#273244);
     display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px;
-    animation: splashSai 0.35s ease 0.85s forwards;
+    transition: opacity 0.4s ease, visibility 0.4s ease;
+  }
+  .splash-screen.splash-fade-out{
+    opacity:0; visibility:hidden; pointer-events:none;
   }
   .splash-logo{
     width:84px; height:84px; border-radius:50%;
@@ -348,20 +351,18 @@
   }
   .splash-text{
     color:#fff; font-weight:800; font-size:20px; letter-spacing:-0.02em;
-    opacity:0; animation: splashTexto 0.4s ease 0.25s forwards;
+    min-height:26px; display:flex; align-items:center;
+  }
+  .splash-cursor{
+    display:inline-block; width:2px; height:20px; margin-left:3px;
+    background:#ff8a3d; animation: splashCursor 0.8s steps(1) infinite;
   }
   @keyframes splashEntra{
     0%{ transform:scale(0.3); opacity:0; }
     100%{ transform:scale(1); opacity:1; }
   }
-  @keyframes splashTexto{
-    0%{ opacity:0; transform:translateY(8px); }
-    100%{ opacity:1; transform:translateY(0); }
-  }
-  @keyframes splashSai{
-    0%{ opacity:1; visibility:visible; }
-    99%{ opacity:0; visibility:visible; }
-    100%{ opacity:0; visibility:hidden; pointer-events:none; }
+  @keyframes splashCursor{
+    50%{ opacity:0; }
   }
 
   /* ---------- MODAIS GENÉRICOS (boas-vindas, login admin, confirmação) ---------- */
@@ -640,7 +641,7 @@
 <!-- ================= TELA DE ABERTURA (rápida, só uma animação de entrada) ================= -->
 <div class="splash-screen" id="splashScreen">
   <div class="splash-logo">D</div>
-  <div class="splash-text">Ofertas do Dia</div>
+  <div class="splash-text"><span id="splashTypedText"></span><span class="splash-cursor"></span></div>
 </div>
 
 <!-- ================= PORTÃO DE ENTRADA: NOME DO CLIENTE ================= -->
@@ -2363,11 +2364,32 @@ async function iniciar(){
 }
 iniciar();
 
-// tira a tela de abertura do DOM depois que a animação termina
-setTimeout(() => {
+// Efeito de "máquina de escrever" na tela de abertura, digitando o nome
+// da loja letra por letra, e só então some com a tela.
+function iniciarSplashDigitacao(){
+  const texto = "Promoções Diogo";
+  const alvo = document.getElementById('splashTypedText');
   const splash = document.getElementById('splashScreen');
-  if(splash) splash.style.display = 'none';
-}, 1300);
+  if(!alvo || !splash) return;
+
+  let i = 0;
+  const velocidade = 55; // ms por letra
+
+  const digitar = setInterval(() => {
+    alvo.textContent += texto[i];
+    i++;
+    if(i >= texto.length){
+      clearInterval(digitar);
+      // segura a tela um instante com o texto completo, depois some
+      setTimeout(() => {
+        splash.classList.add('splash-fade-out');
+        setTimeout(() => { splash.style.display = 'none'; }, 450);
+      }, 450);
+    }
+  }, velocidade);
+}
+// pequeno atraso pra deixar o logo "saltar" primeiro, antes de começar a digitar
+setTimeout(iniciarSplashDigitacao, 300);
 
 document.getElementById('wSobrenome').addEventListener('keydown', (e) => {
   if(e.key === 'Enter') confirmarEntrada();
