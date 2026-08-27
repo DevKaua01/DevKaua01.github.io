@@ -1156,7 +1156,12 @@ function renderizarProdutos(){
     const matchCat = categoriaAtiva === "Todos" || (p.abas||[]).includes(categoriaAtiva);
     const matchBusca = p.nome.toLowerCase().includes(termoBusca.toLowerCase());
     return matchCat && matchBusca;
-  }).sort((a, b) => a.precoPromo - b.precoPromo);
+  }).sort((a, b) => {
+    const aEsgotado = (a.estoque||0) <= 0;
+    const bEsgotado = (b.estoque||0) <= 0;
+    if(aEsgotado !== bEsgotado) return aEsgotado ? 1 : -1;
+    return a.precoPromo - b.precoPromo;
+  });
 
   document.getElementById('resultCount').textContent = `${filtrados.length} produto(s)`;
 
