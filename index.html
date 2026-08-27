@@ -795,7 +795,7 @@
       <button class="admin-tab" data-tab="abas" onclick="mudarAbaAdmin('abas')">Abas</button>
       <button class="admin-tab" data-tab="estoque" onclick="mudarAbaAdmin('estoque')">Estoque</button>
       <button class="admin-tab" data-tab="vendas" onclick="mudarAbaAdmin('vendas')">Vendas / Whatsapp</button>
-      <button class="admin-tab" data-tab="analytics" onclick="mudarAbaAdmin('analytics')">Desempenho</button>
+      <button class="admin-tab" data-tab="analytics" onclick="mudarAbaAdmin('analytics')">Analytics</button>
     </div>
     <div class="admin-body" id="adminBody"></div>
   </div>
@@ -921,6 +921,8 @@ let pedidos = [];
 let carrinho = {};
 let categoriaAtiva = "Todos";
 let termoBusca = "";
+let quantidadeVisivel = 20;
+const PRODUTOS_POR_PAGINA = 20;
 let isAdmin = false;
 let editandoId = null;
 let arquivoImagemSelecionado = null; 
@@ -1134,12 +1136,15 @@ function verProdutosDaAba(nome){
 
 function selecionarCategoria(c){
   categoriaAtiva = c;
+  quantidadeVisivel = PRODUTOS_POR_PAGINA;
   montarCategorias();
   renderizarProdutos();
 }
 
 function renderizarProdutos(){
   const grid = document.getElementById('productGrid');
+  const wrapAnterior = document.getElementById('verMaisWrap');
+  if(wrapAnterior) wrapAnterior.remove();
 
   if(configuracaoPendente){
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1;">Configure o banco de dados (veja INSTRUCOES-BANCO-DE-DADOS.md) para os produtos aparecerem aqui.</div>`;
@@ -1151,7 +1156,7 @@ function renderizarProdutos(){
     const matchCat = categoriaAtiva === "Todos" || (p.abas||[]).includes(categoriaAtiva);
     const matchBusca = p.nome.toLowerCase().includes(termoBusca.toLowerCase());
     return matchCat && matchBusca;
-  });
+  }).sort((a, b) => a.precoPromo - b.precoPromo);
 
   document.getElementById('resultCount').textContent = `${filtrados.length} produto(s)`;
 
@@ -1160,7 +1165,9 @@ function renderizarProdutos(){
     return;
   }
 
-  grid.innerHTML = filtrados.map(p => {
+  const visiveis = filtrados.slice(0, quantidadeVisivel);
+
+  grid.innerHTML = visiveis.map(p => {
     const desconto = calcularDesconto(p.precoOriginal, p.precoPromo);
     const semEstoque = (p.estoque||0) <= 0;
     return `
@@ -1183,6 +1190,21 @@ function renderizarProdutos(){
       </div>
     `;
   }).join('');
+
+  if(filtrados.length > quantidadeVisivel){
+    grid.insertAdjacentHTML('afterend', `
+      <div id="verMaisWrap" style="text-align:center; margin-top:24px;">
+        <button class="btn-ghost" onclick="carregarMaisProdutos()">Ver mais produtos (${filtrados.length - quantidadeVisivel} restantes)</button>
+      </div>
+    `);
+  }
+}
+
+function carregarMaisProdutos(){
+  const wrap = document.getElementById('verMaisWrap');
+  if(wrap) wrap.remove();
+  quantidadeVisivel += PRODUTOS_POR_PAGINA;
+  renderizarProdutos();
 }
 
 function adicionarAoCarrinho(id){
@@ -1333,6 +1355,7 @@ async function checkoutWhatsApp(){
 
 document.getElementById('searchInput').addEventListener('input', (e) => {
   termoBusca = e.target.value;
+  quantidadeVisivel = PRODUTOS_POR_PAGINA;
   renderizarProdutos();
 });
 
@@ -1535,8 +1558,10 @@ async function renderDashboardAdmin(){
   
 /* ---------------- ADMIN: PRODUTOS (CRUD no banco de dados) ---------------- */
 
-function renderProdutosAdmin(){
-  const linhas = PRODUTOS.map(p => `
+let termoBuscaAdminProdutos = "";
+
+function linhasProdutosAdminHTML(lista){
+  return lista.map(p => `
     <tr>
       <td><img src="${p.imagem || IMAGEM_PLACEHOLDER}" alt=""></td>
       <td>${escaparTexto(p.nome)}<br><span style="color:var(--slate); font-size:11.5px;">${escaparTexto(p.categoria)}${(p.abas && p.abas.length) ? ' · ' + escaparTexto(p.abas.join(', ')) : ''}</span></td>
@@ -1550,7 +1575,18 @@ function renderProdutosAdmin(){
         </div>
       </td>
     </tr>
-  `).join('');
+  `).join('') || `<tr><td colspan="6" style="text-align:center; color:var(--slate); padding:24px;">Nenhum produto encontrado.</td></tr>`;
+}
+
+function filtrarProdutosAdmin(valor){
+  termoBuscaAdminProdutos = valor;
+  const filtrados = PRODUTOS.filter(p => p.nome.toLowerCase().includes(valor.toLowerCase()));
+  const tbody = document.getElementById('produtosAdminTbody');
+  if(tbody) tbody.innerHTML = linhasProdutosAdminHTML(filtrados);
+}
+
+function renderProdutosAdmin(){
+  const filtrados = PRODUTOS.filter(p => p.nome.toLowerCase().includes(termoBuscaAdminProdutos.toLowerCase()));
 
   return `
     <div class="admin-note">
@@ -1559,11 +1595,14 @@ function renderProdutosAdmin(){
     </div>
     <div class="toolbar">
       <button class="btn-sm" onclick="abrirFormProduto(null)">+ Novo produto</button>
+      <input type="text" id="buscaProdutosAdmin" placeholder="🔍 Buscar produto pelo nome..."
+        value="${termoBuscaAdminProdutos.replace(/"/g,'&quot;')}" oninput="filtrarProdutosAdmin(this.value)"
+        style="flex:1; max-width:320px; padding:9px 12px; border-radius:8px; border:1px solid rgba(46,74,58,0.2); font-size:13.5px; font-family:inherit;">
     </div>
     <div class="table-scroll">
       <table class="admin-table">
         <thead><tr><th></th><th>Produto</th><th>Preço original</th><th>Preço promo</th><th>Estoque</th><th>Ações</th></tr></thead>
-        <tbody>${linhas || `<tr><td colspan="6" style="text-align:center; color:var(--slate); padding:24px;">Nenhum produto cadastrado.</td></tr>`}</tbody>
+        <tbody id="produtosAdminTbody">${linhasProdutosAdminHTML(filtrados)}</tbody>
       </table>
     </div>
   `;
