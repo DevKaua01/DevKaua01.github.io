@@ -391,6 +391,14 @@
   .modal-error{color:var(--danger); font-size:12.5px; font-weight:600; margin:-4px 0 12px; display:none;}
   .modal-error.show{display:block;}
   .modal-actions{display:flex; gap:10px; margin-top:6px;}
+  .vendedor-btn{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    width:100%; padding:13px 16px; border-radius:10px; border:1.5px solid rgba(46,74,58,0.15);
+    background:#fff; cursor:pointer; font-family:inherit; font-size:14.5px; font-weight:700;
+    color:var(--forest-dark); text-align:left; transition:all .15s ease;
+  }
+  .vendedor-btn:hover{border-color:#25D366; background:rgba(37,211,102,0.06);}
+  .vendedor-btn .icone-whats{font-size:18px;}
 
   /* ---------- ADMIN ---------- */
   .admin-overlay{
@@ -700,6 +708,19 @@
   </div>
 </div>
 
+<!-- ================= ESCOLHA DE VENDEDOR (aparece só se houver mais de 1 vendedor ativo) ================= -->
+<div class="modal-overlay" id="vendedorOverlay">
+  <div class="modal-box">
+    <div class="modal-icon">🧑‍💼</div>
+    <h4>Com quem você quer falar?</h4>
+    <p class="desc">Escolha o vendedor pra finalizar seu pedido pelo WhatsApp.</p>
+    <div id="listaVendedores" style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;"></div>
+    <div class="modal-actions">
+      <button class="btn-sm secondary" onclick="fecharEscolhaVendedor()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <header>
   <div class="header-inner">
     <div class="logo">
@@ -794,8 +815,9 @@
       <button class="admin-tab" data-tab="produtos" onclick="mudarAbaAdmin('produtos')">Produtos</button>
       <button class="admin-tab" data-tab="abas" onclick="mudarAbaAdmin('abas')">Abas</button>
       <button class="admin-tab" data-tab="estoque" onclick="mudarAbaAdmin('estoque')">Estoque</button>
+      <button class="admin-tab" data-tab="vendedores" onclick="mudarAbaAdmin('vendedores')">Vendedores</button>
       <button class="admin-tab" data-tab="vendas" onclick="mudarAbaAdmin('vendas')">Vendas / Whatsapp</button>
-      <button class="admin-tab" data-tab="analytics" onclick="mudarAbaAdmin('analytics')">Desempenho</button>
+      <button class="admin-tab" data-tab="analytics" onclick="mudarAbaAdmin('analytics')">Analytics</button>
     </div>
     <div class="admin-body" id="adminBody"></div>
   </div>
@@ -895,6 +917,36 @@
   </div>
 </div>
 
+<!-- Formulário de vendedor -->
+<div class="form-overlay" id="vendedorFormOverlay">
+  <div class="form-box">
+    <h4 id="vendedorFormTitulo">Novo vendedor</h4>
+    <input type="hidden" id="veId">
+    <div class="form-field">
+      <label>Nome do vendedor</label>
+      <input type="text" id="veNome" placeholder="Ex: Diogo, Ana, Loja Centro...">
+    </div>
+    <div class="form-field">
+      <label>WhatsApp (código do país + DDD + número, só dígitos)</label>
+      <input type="text" id="veWhatsapp" placeholder="Ex: 5521999999999">
+    </div>
+    <div class="form-field">
+      <label>Ordem de exibição (número menor aparece primeiro)</label>
+      <input type="number" id="veOrdem" min="0" placeholder="0">
+    </div>
+    <div class="form-field">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="veAtivo" style="width:16px; height:16px;" checked>
+        Vendedor ativo (aparece como opção pros clientes)
+      </label>
+    </div>
+    <div class="form-actions">
+      <button class="btn-sm" id="btnSalvarVendedor" onclick="salvarVendedorForm()">Salvar vendedor</button>
+      <button class="btn-sm secondary" onclick="fecharFormVendedor()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Biblioteca do Supabase (banco de dados online) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -917,6 +969,7 @@ if(!configuracaoPendente){
 
 let PRODUTOS = [];
 let TABS = [];
+let VENDEDORES = [];
 let pedidos = [];
 let carrinho = {};
 let categoriaAtiva = "Todos";
@@ -930,6 +983,7 @@ let imagemPathAtual = null;
 let arquivoImagemAbaSelecionado = null;
 let imagemPathAtualAba = null;
 let editandoAbaId = null;
+let editandoVendedorId = null;
 let clienteNome = "";
 let confirmCallback = null;
 
@@ -1010,6 +1064,30 @@ async function recarregarTabs(){
   }
 }
 
+/* ---------------- CARREGAMENTO DE VENDEDORES (BANCO DE DADOS) ---------------- */
+
+async function carregarVendedoresDoBanco(){
+  if(!supabaseClient) return [];
+  const { data, error } = await supabaseClient
+    .from('vendedores')
+    .select('*')
+    .order('ordem', { ascending: true })
+    .order('nome', { ascending: true });
+
+  if(error){
+    console.error(error);
+    return [];
+  }
+  return data;
+}
+
+async function recarregarVendedores(){
+  VENDEDORES = await carregarVendedoresDoBanco();
+  if(document.getElementById('adminOverlay').classList.contains('open') && window.abaAtualAdmin === 'vendedores'){
+    mudarAbaAdmin('vendedores');
+  }
+}
+
 async function recarregarProdutos(){
   PRODUTOS = await carregarProdutosDoBanco();
   montarCategorias();
@@ -1058,6 +1136,13 @@ function ativarTempoReal(){
     .channel('abas-tempo-real')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'tabs' }, () => {
       recarregarTabs();
+    })
+    .subscribe();
+
+  supabaseClient
+    .channel('vendedores-tempo-real')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'vendedores' }, () => {
+      recarregarVendedores();
     })
     .subscribe();
 }
@@ -1303,13 +1388,49 @@ function mostrarToast(msg){
   window._toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
-async function checkoutWhatsApp(){
+function checkoutWhatsApp(){
   const ids = Object.keys(carrinho);
   if(ids.length === 0) return;
   if(!supabaseClient){
     mostrarToast("Banco de dados não configurado ainda");
     return;
   }
+
+  const vendedoresAtivos = (VENDEDORES||[]).filter(v => v.ativo);
+
+  if(vendedoresAtivos.length >= 2){
+    abrirEscolhaVendedor(vendedoresAtivos);
+    return;
+  }
+
+  // só 1 vendedor cadastrado (ou nenhum) — vai direto, sem precisar perguntar
+  const numeroDestino = vendedoresAtivos.length === 1 ? vendedoresAtivos[0].whatsapp : WHATSAPP_NUMERO;
+  finalizarPedidoParaVendedor(numeroDestino);
+}
+
+function abrirEscolhaVendedor(vendedoresAtivos){
+  const lista = document.getElementById('listaVendedores');
+  lista.innerHTML = vendedoresAtivos.map(v => `
+    <button class="vendedor-btn" onclick="selecionarVendedorEFinalizar('${v.whatsapp.replace(/'/g,"\\'")}')">
+      ${escaparTexto(v.nome)}
+      <span class="icone-whats">📲</span>
+    </button>
+  `).join('');
+  document.getElementById('vendedorOverlay').classList.add('open');
+}
+
+function fecharEscolhaVendedor(){
+  document.getElementById('vendedorOverlay').classList.remove('open');
+}
+
+function selecionarVendedorEFinalizar(numeroWhatsapp){
+  fecharEscolhaVendedor();
+  finalizarPedidoParaVendedor(numeroWhatsapp);
+}
+
+async function finalizarPedidoParaVendedor(numeroWhatsapp){
+  const ids = Object.keys(carrinho);
+  if(ids.length === 0) return;
 
   const checkoutBtn = document.getElementById('checkoutBtn');
   checkoutBtn.disabled = true;
@@ -1349,7 +1470,7 @@ async function checkoutWhatsApp(){
     mostrarToast("Erro ao registrar o pedido, mas você ainda pode enviar pelo WhatsApp");
   }
 
-  const url = `https://wa.me/${WHATSAPP_NUMERO}?text=${encodeURIComponent(mensagem)}`;
+  const url = `https://wa.me/${numeroWhatsapp}?text=${encodeURIComponent(mensagem)}`;
   window.open(url, '_blank');
 
   carrinho = {};
@@ -1485,6 +1606,8 @@ async function mudarAbaAdmin(aba){
       body.innerHTML = await renderProdutosAdmin();
     } else if(window.abaAtualAdmin === 'estoque') {
       body.innerHTML = await renderEstoqueAdmin();
+    } else if(window.abaAtualAdmin === 'vendedores') {
+      body.innerHTML = renderVendedoresAdmin();
     } else if(window.abaAtualAdmin === 'abas') {
       body.innerHTML = renderAbasAdmin();
     } else if(window.abaAtualAdmin === 'vendas') {
@@ -2089,6 +2212,132 @@ function excluirAba(id, nome){
   );
 }
 
+/* ---------------- ADMIN: VENDEDORES ---------------- */
+
+function renderVendedoresAdmin(){
+  const linhas = VENDEDORES.map(v => `
+    <tr>
+      <td><strong>${escaparTexto(v.nome)}</strong></td>
+      <td>${escaparTexto(v.whatsapp)}</td>
+      <td>${v.ativo ? '<span class="pill ok">Ativo</span>' : '<span class="pill warn">Inativo</span>'}</td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" title="Editar" onclick="abrirFormVendedor(${v.id})">✏️</button>
+          <button class="icon-btn danger" title="Excluir" onclick="excluirVendedor(${v.id}, '${v.nome.replace(/'/g,"\\'")}')">🗑️</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="admin-note">
+      Cadastre um ou mais vendedores, cada um com seu próprio número de WhatsApp. Se houver
+      <strong>2 ou mais vendedores ativos</strong>, o cliente escolhe com quem quer falar antes de
+      finalizar a compra. Com apenas 1 vendedor ativo (ou nenhum), o pedido vai direto pro número
+      configurado em WHATSAPP_NUMERO no código, sem perguntar nada.
+    </div>
+    <div class="toolbar">
+      <button class="btn-sm" onclick="abrirFormVendedor(null)">+ Novo vendedor</button>
+    </div>
+    <div class="table-scroll">
+      <table class="admin-table">
+        <thead><tr><th>Nome</th><th>WhatsApp</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody>${linhas || `<tr><td colspan="4" style="text-align:center; color:var(--slate); padding:24px;">Nenhum vendedor cadastrado ainda.</td></tr>`}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function abrirFormVendedor(id){
+  editandoVendedorId = id;
+  const overlay = document.getElementById('vendedorFormOverlay');
+  const titulo = document.getElementById('vendedorFormTitulo');
+
+  if(id === null){
+    titulo.textContent = "Novo vendedor";
+    document.getElementById('veId').value = "";
+    document.getElementById('veNome').value = "";
+    document.getElementById('veWhatsapp').value = "";
+    const maiorOrdem = VENDEDORES.reduce((max, v) => Math.max(max, v.ordem || 0), -1);
+    document.getElementById('veOrdem').value = maiorOrdem + 1;
+    document.getElementById('veAtivo').checked = true;
+  } else {
+    const v = VENDEDORES.find(x => x.id === id);
+    titulo.textContent = "Editar vendedor";
+    document.getElementById('veId').value = v.id;
+    document.getElementById('veNome').value = v.nome;
+    document.getElementById('veWhatsapp').value = v.whatsapp;
+    document.getElementById('veOrdem').value = v.ordem || 0;
+    document.getElementById('veAtivo').checked = !!v.ativo;
+  }
+  overlay.classList.add('open');
+}
+
+function fecharFormVendedor(){
+  document.getElementById('vendedorFormOverlay').classList.remove('open');
+}
+
+async function salvarVendedorForm(){
+  const nome = document.getElementById('veNome').value.trim();
+  const whatsapp = document.getElementById('veWhatsapp').value.trim().replace(/\D/g, '');
+  const ordem = parseInt(document.getElementById('veOrdem').value) || 0;
+  const ativo = document.getElementById('veAtivo').checked;
+
+  if(!nome){
+    mostrarToast("Digite o nome do vendedor");
+    return;
+  }
+  if(!whatsapp || whatsapp.length < 10){
+    mostrarToast("Digite um número de WhatsApp válido (com código do país e DDD)");
+    return;
+  }
+
+  const btn = document.getElementById('btnSalvarVendedor');
+  btn.disabled = true;
+  btn.textContent = "Salvando...";
+
+  const registro = { nome, whatsapp, ordem, ativo };
+
+  let error;
+  if(editandoVendedorId){
+    ({ error } = await supabaseClient.from('vendedores').update(registro).eq('id', editandoVendedorId));
+  } else {
+    ({ error } = await supabaseClient.from('vendedores').insert(registro));
+  }
+
+  btn.disabled = false;
+  btn.textContent = "Salvar vendedor";
+
+  if(error){
+    console.error(error);
+    mostrarToast("Erro ao salvar. Verifique se você está logado.");
+    return;
+  }
+
+  fecharFormVendedor();
+  mostrarToast("Vendedor salvo ✓");
+  await recarregarVendedores();
+  mudarAbaAdmin('vendedores');
+}
+
+function excluirVendedor(id, nome){
+  pedirConfirmacao(
+    "Excluir vendedor",
+    `Tem certeza que deseja excluir "${nome}"? Essa ação não pode ser desfeita.`,
+    async () => {
+      const { error } = await supabaseClient.from('vendedores').delete().eq('id', id);
+      if(error){
+        console.error(error);
+        mostrarToast("Erro ao excluir vendedor");
+        return;
+      }
+      mostrarToast("Vendedor excluído");
+      await recarregarVendedores();
+      mudarAbaAdmin('vendedores');
+    }
+  );
+}
+
 /* ---------------- ADMIN: ESTOQUE ---------------- */
 
 async function renderEstoqueAdmin(){
@@ -2403,6 +2652,7 @@ function excluirPedido(id){
 async function iniciar(){
   await verificarSessaoExistente();
   TABS = await carregarTabsDoBanco();
+  VENDEDORES = await carregarVendedoresDoBanco();
   await recarregarProdutos();
   ativarTempoReal();
 }
