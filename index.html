@@ -817,7 +817,7 @@
       <button class="admin-tab" data-tab="estoque" onclick="mudarAbaAdmin('estoque')">Estoque</button>
       <button class="admin-tab" data-tab="vendedores" onclick="mudarAbaAdmin('vendedores')">Vendedores</button>
       <button class="admin-tab" data-tab="vendas" onclick="mudarAbaAdmin('vendas')">Vendas / Whatsapp</button>
-      <button class="admin-tab" data-tab="analytics" onclick="mudarAbaAdmin('analytics')">Desempenho</button>
+      <button class="admin-tab" data-tab="analytics" onclick="mudarAbaAdmin('analytics')">Analytics</button>
     </div>
     <div class="admin-body" id="adminBody"></div>
   </div>
@@ -1405,13 +1405,14 @@ function checkoutWhatsApp(){
 
   // só 1 vendedor cadastrado (ou nenhum) — vai direto, sem precisar perguntar
   const numeroDestino = vendedoresAtivos.length === 1 ? vendedoresAtivos[0].whatsapp : WHATSAPP_NUMERO;
-  finalizarPedidoParaVendedor(numeroDestino);
+  const nomeDestino = vendedoresAtivos.length === 1 ? vendedoresAtivos[0].nome : null;
+  finalizarPedidoParaVendedor(numeroDestino, nomeDestino);
 }
 
 function abrirEscolhaVendedor(vendedoresAtivos){
   const lista = document.getElementById('listaVendedores');
   lista.innerHTML = vendedoresAtivos.map(v => `
-    <button class="vendedor-btn" onclick="selecionarVendedorEFinalizar('${v.whatsapp.replace(/'/g,"\\'")}')">
+    <button class="vendedor-btn" onclick="selecionarVendedorEFinalizar(${v.id})">
       ${escaparTexto(v.nome)}
       <span class="icone-whats">📲</span>
     </button>
@@ -1423,12 +1424,14 @@ function fecharEscolhaVendedor(){
   document.getElementById('vendedorOverlay').classList.remove('open');
 }
 
-function selecionarVendedorEFinalizar(numeroWhatsapp){
+function selecionarVendedorEFinalizar(vendedorId){
+  const v = (VENDEDORES||[]).find(x => x.id === vendedorId);
+  if(!v) return;
   fecharEscolhaVendedor();
-  finalizarPedidoParaVendedor(numeroWhatsapp);
+  finalizarPedidoParaVendedor(v.whatsapp, v.nome);
 }
 
-async function finalizarPedidoParaVendedor(numeroWhatsapp){
+async function finalizarPedidoParaVendedor(numeroWhatsapp, nomeVendedor){
   const ids = Object.keys(carrinho);
   if(ids.length === 0) return;
 
@@ -1461,7 +1464,8 @@ async function finalizarPedidoParaVendedor(numeroWhatsapp){
       cliente: nomeParaMensagem,
       itens: itensPedido,
       total: total,
-      status: 'pendente'
+      status: 'pendente',
+      vendedor: nomeVendedor || null
     });
 
     if(erroPedido) throw erroPedido;
@@ -1622,10 +1626,6 @@ async function mudarAbaAdmin(aba){
 
 /* ---------------- ADMIN: DASHBOARD ---------------- */
 
-if (typeof faturamentoHistorico === 'undefined') var faturamentoHistorico = 0;
-if (typeof contagemProdutosHistorico === 'undefined') var contagemProdutosHistorico = {};
-if (typeof historicoPedidosCount === 'undefined') var historicoPedidosCount = 0;
-
 async function renderDashboardAdmin(){
   const { data: listaPedidos } = await supabaseClient
     .from('orders')
@@ -1635,13 +1635,12 @@ async function renderDashboardAdmin(){
     pedidos = listaPedidos;
   }
 
-  const totalPedidosEnviados = (pedidos || []).length + historicoPedidosCount;
+  const todos = pedidos || [];
+  const totalPedidosEnviados = todos.length;
+  const faturamentoTotal = todos.reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
 
-  const totalPendentes = (pedidos || []).reduce((acc, pd) => acc + (Number(pd.total) || 0), 0);
-  const faturamentoTotal = faturamentoHistorico + totalPendentes;
-
-  const contagemGeral = { ...contagemProdutosHistorico };
-  (pedidos || []).forEach(pd => {
+  const contagemGeral = {};
+  todos.forEach(pd => {
     (pd.itens || []).forEach(it => {
       contagemGeral[it.nome] = (contagemGeral[it.nome] || 0) + (it.qtd || 1);
     });
@@ -2431,6 +2430,7 @@ async function renderVendasAdmin(){
     return `
       <div class="admin-note">
         Histórico de todos os pedidos enviados pelo WhatsApp, vindos do banco de dados online.
+        Pedidos confirmados ficam guardados aqui permanentemente.
       </div>
       <div class="empty-state">Nenhuma venda registrada.</div>
     `;
@@ -2438,13 +2438,25 @@ async function renderVendasAdmin(){
 
   pedidos = listaPedidos;
 
-  const linhas = listaPedidos.map(pd => `
+  const pendentes = listaPedidos.filter(pd => pd.status !== 'confirmado');
+  const confirmados = listaPedidos.filter(pd => pd.status === 'confirmado');
+
+  const linhas = listaPedidos.map(pd => {
+    const confirmado = pd.status === 'confirmado';
+    return `
     <tr>
       <td>${formatarData(pd.criado_em)}</td>
-      <td>${pd.cliente || '—'}</td>
-      <td>${(pd.itens||[]).map(it => `${it.qtd}x ${it.nome}`).join('<br>')}</td>
+      <td>${escaparTexto(pd.cliente || '—')}</td>
+      <td>${escaparTexto(pd.vendedor || '—')}</td>
+      <td>${(pd.itens||[]).map(it => `${it.qtd}x ${escaparTexto(it.nome)}`).join('<br>')}</td>
       <td><strong>${formatarMoeda(pd.total)}</strong></td>
       <td>
+        ${confirmado
+          ? `<span class="pill ok">Confirmado</span>`
+          : `<span class="pill warn">Pendente</span>`}
+      </td>
+      <td>
+        ${confirmado ? '—' : `
         <div style="display:flex; gap:6px; align-items:center;">
           <button class="btn-sm" style="background:#1b382b; padding:6px 10px; font-size:12px; display:inline-flex; align-items:center; gap:4px; color:white;" onclick="confirmarPedido('${pd.id}')">
             ✓ Confirmar compra
@@ -2453,20 +2465,25 @@ async function renderVendasAdmin(){
             🗑️ Excluir
           </button>
         </div>
+        `}
       </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   return `
     <div class="admin-note">
       Histórico de todos os pedidos enviados pelo WhatsApp, vindos do banco de dados online.
+      Pedidos <strong>confirmados</strong> ficam guardados aqui permanentemente, com data, cliente e
+      vendedor escolhido. Pedidos pendentes que você excluir somem de vez (útil pra pedidos que não
+      foram concluídos de verdade).
     </div>
     <div class="toolbar">
-      <span style="color:var(--slate); font-size:13px;">${listaPedidos.length} pedido(s) registrado(s)</span>
+      <span style="color:var(--slate); font-size:13px;">${pendentes.length} pendente(s) · ${confirmados.length} confirmado(s)</span>
     </div>
     <div class="table-scroll">
       <table class="admin-table">
-        <thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th></tr></thead>
+        <thead><tr><th>Data</th><th>Cliente</th><th>Vendedor</th><th>Itens</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead>
         <tbody>${linhas}</tbody>
       </table>
     </div>
@@ -2499,7 +2516,10 @@ async function renderAnalyticsAdmin(){
 
   const visitasHoje = visitas.filter(e => new Date(e.criado_em).toDateString() === hojeStr).length;
   const visitas7dias = visitas.filter(e => new Date(e.criado_em) >= seteDiasAtras).length;
-  const totalPedidosConfirmados = historicoPedidosCount + (pedidos ? pedidos.length : 0);
+  const { count: totalPedidosConfirmados } = await supabaseClient
+    .from('orders')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'confirmado');
 
   const taxaCarrinho = visitas.length > 0 ? Math.round((carrinhos.length / visitas.length) * 100) : 0;
   const taxaCheckout = carrinhos.length > 0 ? Math.round((checkouts.length / carrinhos.length) * 100) : 0;
@@ -2566,7 +2586,7 @@ async function renderAnalyticsAdmin(){
       </div>
       <div class="kpi-card">
         <div class="kpi-label">Pedidos confirmados (total)</div>
-        <div class="kpi-value">${totalPedidosConfirmados}</div>
+        <div class="kpi-value">${totalPedidosConfirmados || 0}</div>
       </div>
     </div>
 
@@ -2609,13 +2629,8 @@ async function confirmarPedido(id){
   const pedido = pedidos.find(p => p.id == id);
   if(!pedido) return;
 
-  faturamentoHistorico += Number(pedido.total) || 0;
-  historicoPedidosCount += 1;
-
   if(pedido.itens && Array.isArray(pedido.itens)){
     for(const item of pedido.itens){
-      contagemProdutosHistorico[item.nome] = (contagemProdutosHistorico[item.nome] || 0) + (item.qtd || 1);
-      
       const produtoLocal = PRODUTOS.find(p => p.id == item.id);
       if(produtoLocal){
         const novoEstoque = Math.max(0, (produtoLocal.estoque || 0) - item.qtd);
@@ -2624,8 +2639,13 @@ async function confirmarPedido(id){
     }
   }
 
-  const idParaExcluir = isNaN(id) ? id : Number(id);
-  await supabaseClient.from('orders').delete().eq('id', idParaExcluir);
+  const idNumerico = isNaN(id) ? id : Number(id);
+  const { error } = await supabaseClient.from('orders').update({ status: 'confirmado' }).eq('id', idNumerico);
+  if(error){
+    console.error(error);
+    mostrarToast("Erro ao confirmar o pedido");
+    return;
+  }
 
   mostrarToast("Compra confirmada e estoque atualizado! ✓");
   await recarregarProdutos();
