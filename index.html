@@ -91,6 +91,16 @@
   }
   .search-wrap input:focus{border-color:var(--clay);}
   .search-wrap input::placeholder{color:var(--slate);}
+
+  /* Busca extra que só aparece no celular, perto dos produtos (a de cima,
+     no cabeçalho, fica escondida no mobile — ver media query mais abaixo) */
+  .search-wrap-mobile{display:none;}
+  .search-wrap-mobile input{
+    width:100%; padding:12px 16px; border-radius:999px; border:1px solid rgba(46,74,58,0.2);
+    background:#fff; color:var(--ink); font-size:16px; outline:none;
+  }
+  .search-wrap-mobile input:focus{border-color:var(--clay);}
+  .search-wrap-mobile input::placeholder{color:var(--slate);}
   .cart-btn{
     position:relative; display:flex; align-items:center; gap:8px;
     background:var(--forest); color:var(--cream); border:none; padding:10px 16px;
@@ -528,6 +538,7 @@
 
   @media(max-width:860px){
     .search-wrap{display:none !important;}
+    .search-wrap-mobile{display:block; max-width:1200px; margin:0 auto; padding:0 24px 14px;}
     .hero{grid-template-columns:1fr; padding-top:28px; gap:28px;}
     .form-row{grid-template-columns:1fr;}
     .admin-body{padding:16px 14px;}
@@ -555,6 +566,7 @@
     .brand-card{flex-basis:150px; padding:16px 10px;}
     .categories-grid{grid-template-columns:1fr;}
     .category-card{min-height:170px; padding:18px;}
+    .search-wrap-mobile{padding:0 16px 14px;}
     .cat-bar{padding:0 16px 8px; gap:8px;}
     .cat-chip{padding:8px 13px; font-size:12.5px;}
 
@@ -765,6 +777,10 @@
 
 <div class="cat-bar" id="catBar"></div>
 
+<div class="search-wrap-mobile">
+  <input id="searchInputMobile" type="text" placeholder="🔍 Buscar produto...">
+</div>
+
 <main>
   <div class="section-title" id="produtos">
     <h2>🔥 Ofertas em destaque</h2>
@@ -817,7 +833,7 @@
       <button class="admin-tab" data-tab="estoque" onclick="mudarAbaAdmin('estoque')">Estoque</button>
       <button class="admin-tab" data-tab="vendedores" onclick="mudarAbaAdmin('vendedores')">Vendedores</button>
       <button class="admin-tab" data-tab="vendas" onclick="mudarAbaAdmin('vendas')">Vendas / Whatsapp</button>
-      <button class="admin-tab" data-tab="analytics" onclick="mudarAbaAdmin('analytics')">Desempenho</button>
+      <button class="admin-tab" data-tab="analytics" onclick="mudarAbaAdmin('analytics')">Analytics</button>
     </div>
     <div class="admin-body" id="adminBody"></div>
   </div>
@@ -1486,6 +1502,14 @@ async function finalizarPedidoParaVendedor(numeroWhatsapp, nomeVendedor){
 document.getElementById('searchInput').addEventListener('input', (e) => {
   termoBusca = e.target.value;
   quantidadeVisivel = PRODUTOS_POR_PAGINA;
+  document.getElementById('searchInputMobile').value = termoBusca;
+  renderizarProdutos();
+});
+
+document.getElementById('searchInputMobile').addEventListener('input', (e) => {
+  termoBusca = e.target.value;
+  quantidadeVisivel = PRODUTOS_POR_PAGINA;
+  document.getElementById('searchInput').value = termoBusca;
   renderizarProdutos();
 });
 
