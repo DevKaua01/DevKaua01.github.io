@@ -232,6 +232,23 @@
   .section-title h2{font-family:'Inter',sans-serif; font-weight:700; font-size:24px; color:var(--forest-dark);}
   .section-title span{color:var(--slate); font-size:13.5px;}
 
+  .produtos-toolbar{
+    display:flex; justify-content:flex-end; gap:20px; flex-wrap:wrap; margin-bottom:22px;
+  }
+  .produtos-toolbar-item{display:flex; align-items:center; gap:8px;}
+  .produtos-toolbar-item label{
+    font-size:12px; font-weight:700; color:var(--slate); white-space:nowrap;
+  }
+  .produtos-toolbar-item select{
+    appearance:none; -webkit-appearance:none;
+    background:#fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="8" viewBox="0 0 12 8"><path fill="%23687386" d="M1 1l5 5 5-5"/></svg>') no-repeat right 12px center;
+    border:1.5px solid rgba(46,74,58,0.18); border-radius:999px;
+    padding:9px 34px 9px 16px; font-family:inherit; font-size:13.5px; font-weight:700;
+    color:var(--forest-dark); cursor:pointer; transition:border-color .15s ease;
+  }
+  .produtos-toolbar-item select:hover{border-color:var(--clay);}
+  .produtos-toolbar-item select:focus{outline:none; border-color:var(--clay);}
+
   .grid{
     display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:20px;
   }
@@ -578,6 +595,9 @@
 
     main{padding:20px 16px 90px;}
     .section-title h2{font-size:20px;}
+    .produtos-toolbar{justify-content:space-between; gap:10px; margin-bottom:16px;}
+    .produtos-toolbar-item{flex:1; flex-direction:column; align-items:flex-start; gap:4px;}
+    .produtos-toolbar-item select{width:100%; padding:9px 30px 9px 12px; font-size:12.5px;}
 
     /* grade de produtos em 2 colunas no celular, como em apps de loja */
     .grid{grid-template-columns:repeat(2,1fr); gap:12px;}
@@ -800,6 +820,29 @@
     <h2>🔥 Ofertas em destaque</h2>
     <span id="resultCount"></span>
   </div>
+  <div class="produtos-toolbar">
+    <div class="produtos-toolbar-item">
+      <label for="seletorPorPagina">Mostrar por página</label>
+      <select id="seletorPorPagina" onchange="alterarItensPorPagina(this.value)">
+        <option value="12">12</option>
+        <option value="20" selected>20</option>
+        <option value="40">40</option>
+        <option value="9999">Todos</option>
+      </select>
+    </div>
+    <div class="produtos-toolbar-item">
+      <label for="seletorOrdenacao">Ordenar por</label>
+      <select id="seletorOrdenacao" onchange="alterarOrdenacao(this.value)">
+        <option value="melhores">Melhores resultados</option>
+        <option value="mais_vendidos">Mais vendidos</option>
+        <option value="desconto">Maior desconto</option>
+        <option value="menor_preco">Menor preço</option>
+        <option value="maior_preco">Maior preço</option>
+        <option value="az">A-Z</option>
+        <option value="za">Z-A</option>
+      </select>
+    </div>
+  </div>
   <div class="grid" id="productGrid"><div class="empty-state">Carregando produtos...</div></div>
 </main>
 
@@ -1006,7 +1049,8 @@ let filtroMarca = "Todos";
 let filtroCategoria = "Todos";
 let termoBusca = "";
 let quantidadeVisivel = 20;
-const PRODUTOS_POR_PAGINA = 20;
+let tamanhoPagina = 20;
+let ordenacaoAtiva = "melhores";
 let isAdmin = false;
 let editandoId = null;
 let arquivoImagemSelecionado = null; 
@@ -1066,7 +1110,8 @@ async function carregarProdutosDoBanco(){
     imagem: p.imagem,
     imagemPath: p.imagem_path,
     descricao: p.descricao,
-    abas: p.abas || []
+    abas: p.abas || [],
+    totalVendido: p.total_vendido || 0
   }));
 }
 
@@ -1275,7 +1320,7 @@ function verProdutosDaAba(nome){
     filtroCategoria = nome;
     filtroMarca = "Todos";
   }
-  quantidadeVisivel = PRODUTOS_POR_PAGINA;
+  quantidadeVisivel = tamanhoPagina;
   montarCategorias();
   renderizarProdutos();
   document.getElementById('produtos').scrollIntoView({behavior:'smooth'});
@@ -1283,15 +1328,27 @@ function verProdutosDaAba(nome){
 
 function selecionarFiltroMarca(c){
   filtroMarca = c;
-  quantidadeVisivel = PRODUTOS_POR_PAGINA;
+  quantidadeVisivel = tamanhoPagina;
   montarCategorias();
   renderizarProdutos();
 }
 
 function selecionarFiltroCategoria(c){
   filtroCategoria = c;
-  quantidadeVisivel = PRODUTOS_POR_PAGINA;
+  quantidadeVisivel = tamanhoPagina;
   montarCategorias();
+  renderizarProdutos();
+}
+
+function alterarOrdenacao(valor){
+  ordenacaoAtiva = valor;
+  quantidadeVisivel = tamanhoPagina;
+  renderizarProdutos();
+}
+
+function alterarItensPorPagina(valor){
+  tamanhoPagina = parseInt(valor);
+  quantidadeVisivel = tamanhoPagina;
   renderizarProdutos();
 }
 
@@ -1315,9 +1372,23 @@ function renderizarProdutos(){
     const aEsgotado = (a.estoque||0) <= 0;
     const bEsgotado = (b.estoque||0) <= 0;
     if(aEsgotado !== bEsgotado) return aEsgotado ? 1 : -1;
-    const descontoA = calcularDesconto(a.precoOriginal, a.precoPromo);
-    const descontoB = calcularDesconto(b.precoOriginal, b.precoPromo);
-    return descontoB - descontoA;
+
+    switch(ordenacaoAtiva){
+      case 'mais_vendidos':
+        return (b.totalVendido||0) - (a.totalVendido||0);
+      case 'menor_preco':
+        return a.precoPromo - b.precoPromo;
+      case 'maior_preco':
+        return b.precoPromo - a.precoPromo;
+      case 'az':
+        return a.nome.localeCompare(b.nome, 'pt-BR');
+      case 'za':
+        return b.nome.localeCompare(a.nome, 'pt-BR');
+      case 'desconto':
+      case 'melhores':
+      default:
+        return calcularDesconto(b.precoOriginal, b.precoPromo) - calcularDesconto(a.precoOriginal, a.precoPromo);
+    }
   });
 
   document.getElementById('resultCount').textContent = `${filtrados.length} produto(s)`;
@@ -1365,7 +1436,7 @@ function renderizarProdutos(){
 function carregarMaisProdutos(){
   const wrap = document.getElementById('verMaisWrap');
   if(wrap) wrap.remove();
-  quantidadeVisivel += PRODUTOS_POR_PAGINA;
+  quantidadeVisivel += tamanhoPagina;
   renderizarProdutos();
 }
 
@@ -1557,14 +1628,14 @@ async function finalizarPedidoParaVendedor(numeroWhatsapp, nomeVendedor){
 
 document.getElementById('searchInput').addEventListener('input', (e) => {
   termoBusca = e.target.value;
-  quantidadeVisivel = PRODUTOS_POR_PAGINA;
+  quantidadeVisivel = tamanhoPagina;
   document.getElementById('searchInputMobile').value = termoBusca;
   renderizarProdutos();
 });
 
 document.getElementById('searchInputMobile').addEventListener('input', (e) => {
   termoBusca = e.target.value;
-  quantidadeVisivel = PRODUTOS_POR_PAGINA;
+  quantidadeVisivel = tamanhoPagina;
   document.getElementById('searchInput').value = termoBusca;
   renderizarProdutos();
 });
@@ -2714,7 +2785,11 @@ async function confirmarPedido(id){
       const produtoLocal = PRODUTOS.find(p => p.id == item.id);
       if(produtoLocal){
         const novoEstoque = Math.max(0, (produtoLocal.estoque || 0) - item.qtd);
-        await supabaseClient.from('products').update({ estoque: novoEstoque }).eq('id', item.id);
+        const novoTotalVendido = (produtoLocal.totalVendido || 0) + item.qtd;
+        await supabaseClient.from('products').update({
+          estoque: novoEstoque,
+          total_vendido: novoTotalVendido
+        }).eq('id', item.id);
       }
     }
   }
