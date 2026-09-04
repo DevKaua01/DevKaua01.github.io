@@ -207,8 +207,13 @@
   .category-card .ver-produtos-btn:hover{background:#fff; color:var(--forest-dark);}
 
   /* ---------- CATEGORIAS ---------- */
+  .filtro-grupo{max-width:1200px; margin:0 auto; padding:0 24px;}
+  .filtro-label{
+    font-size:11.5px; font-weight:800; text-transform:uppercase; letter-spacing:0.05em;
+    color:var(--slate); margin-bottom:8px;
+  }
   .cat-bar{
-    max-width:1200px; margin:0 auto; padding:0 24px 8px;
+    max-width:1200px; margin:0 auto; padding:0 0 14px;
     display:flex; gap:10px; flex-wrap:wrap;
   }
   .cat-chip{
@@ -567,7 +572,8 @@
     .categories-grid{grid-template-columns:1fr;}
     .category-card{min-height:170px; padding:18px;}
     .search-wrap-mobile{padding:0 16px 14px;}
-    .cat-bar{padding:0 16px 8px; gap:8px;}
+    .filtro-grupo{padding:0 16px;}
+    .cat-bar{padding:0 0 8px; gap:8px;}
     .cat-chip{padding:8px 13px; font-size:12.5px;}
 
     main{padding:20px 16px 90px;}
@@ -775,7 +781,15 @@
   <div class="categories-grid" id="categoriesGrid"></div>
 </section>
 
-<div class="cat-bar" id="catBar"></div>
+<div class="filtro-grupo" id="grupoFiltroMarcas" style="display:none;">
+  <div class="filtro-label">Marcas</div>
+  <div class="cat-bar" id="catBarMarcas"></div>
+</div>
+
+<div class="filtro-grupo" id="grupoFiltroCategorias" style="display:none;">
+  <div class="filtro-label">Categorias</div>
+  <div class="cat-bar" id="catBarCategorias"></div>
+</div>
 
 <div class="search-wrap-mobile">
   <input id="searchInputMobile" type="text" placeholder="🔍 Buscar produto...">
@@ -988,7 +1002,8 @@ let TABS = [];
 let VENDEDORES = [];
 let pedidos = [];
 let carrinho = {};
-let categoriaAtiva = "Todos";
+let filtroMarca = "Todos";
+let filtroCategoria = "Todos";
 let termoBusca = "";
 let quantidadeVisivel = 20;
 const PRODUTOS_POR_PAGINA = 20;
@@ -1184,12 +1199,33 @@ function confirmarEntrada(){
 /* ---------------- LOJA ---------------- */
 
 function montarCategorias(){
-  const nomesAbas = TABS.map(t => t.nome);
-  const todas = ["Todos", ...nomesAbas];
-  const bar = document.getElementById('catBar');
-  bar.innerHTML = todas.map(c =>
-    `<button class="cat-chip ${c===categoriaAtiva?'active':''}" onclick="selecionarCategoria('${c.replace(/'/g,"\\'")}')">${c}</button>`
-  ).join('');
+  const marcas = TABS.filter(t => t.tipo === 'marca').map(t => t.nome);
+  const categorias = TABS.filter(t => t.tipo === 'categoria' || !t.tipo).map(t => t.nome);
+
+  const grupoMarcas = document.getElementById('grupoFiltroMarcas');
+  const barMarcas = document.getElementById('catBarMarcas');
+  if(marcas.length === 0){
+    grupoMarcas.style.display = 'none';
+  } else {
+    grupoMarcas.style.display = 'block';
+    const todasMarcas = ["Todos", ...marcas];
+    barMarcas.innerHTML = todasMarcas.map(c =>
+      `<button class="cat-chip ${c===filtroMarca?'active':''}" onclick="selecionarFiltroMarca('${c.replace(/'/g,"\\'")}')">${escaparTexto(c)}</button>`
+    ).join('');
+  }
+
+  const grupoCategorias = document.getElementById('grupoFiltroCategorias');
+  const barCategorias = document.getElementById('catBarCategorias');
+  if(categorias.length === 0){
+    grupoCategorias.style.display = 'none';
+  } else {
+    grupoCategorias.style.display = 'block';
+    const todasCategorias = ["Todos", ...categorias];
+    barCategorias.innerHTML = todasCategorias.map(c =>
+      `<button class="cat-chip ${c===filtroCategoria?'active':''}" onclick="selecionarFiltroCategoria('${c.replace(/'/g,"\\'")}')">${escaparTexto(c)}</button>`
+    ).join('');
+  }
+
   montarSecoesDestaque();
 }
 
@@ -1231,12 +1267,29 @@ function montarSecoesDestaque(){
 }
 
 function verProdutosDaAba(nome){
-  selecionarCategoria(nome);
+  const tab = TABS.find(t => t.nome === nome);
+  if(tab && tab.tipo === 'marca'){
+    filtroMarca = nome;
+    filtroCategoria = "Todos";
+  } else {
+    filtroCategoria = nome;
+    filtroMarca = "Todos";
+  }
+  quantidadeVisivel = PRODUTOS_POR_PAGINA;
+  montarCategorias();
+  renderizarProdutos();
   document.getElementById('produtos').scrollIntoView({behavior:'smooth'});
 }
 
-function selecionarCategoria(c){
-  categoriaAtiva = c;
+function selecionarFiltroMarca(c){
+  filtroMarca = c;
+  quantidadeVisivel = PRODUTOS_POR_PAGINA;
+  montarCategorias();
+  renderizarProdutos();
+}
+
+function selecionarFiltroCategoria(c){
+  filtroCategoria = c;
   quantidadeVisivel = PRODUTOS_POR_PAGINA;
   montarCategorias();
   renderizarProdutos();
@@ -1254,14 +1307,17 @@ function renderizarProdutos(){
   }
 
   const filtrados = PRODUTOS.filter(p => {
-    const matchCat = categoriaAtiva === "Todos" || (p.abas||[]).includes(categoriaAtiva);
+    const matchMarca = filtroMarca === "Todos" || (p.abas||[]).includes(filtroMarca);
+    const matchCategoria = filtroCategoria === "Todos" || (p.abas||[]).includes(filtroCategoria);
     const matchBusca = p.nome.toLowerCase().includes(termoBusca.toLowerCase());
-    return matchCat && matchBusca;
+    return matchMarca && matchCategoria && matchBusca;
   }).sort((a, b) => {
     const aEsgotado = (a.estoque||0) <= 0;
     const bEsgotado = (b.estoque||0) <= 0;
     if(aEsgotado !== bEsgotado) return aEsgotado ? 1 : -1;
-    return a.precoPromo - b.precoPromo;
+    const descontoA = calcularDesconto(a.precoOriginal, a.precoPromo);
+    const descontoB = calcularDesconto(b.precoOriginal, b.precoPromo);
+    return descontoB - descontoA;
   });
 
   document.getElementById('resultCount').textContent = `${filtrados.length} produto(s)`;
